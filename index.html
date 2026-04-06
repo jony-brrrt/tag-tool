@@ -5,1103 +5,825 @@
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>Game Audio Tagger</title>
 <style>
-  *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
-
-  :root {
-    --bg:       #0f0f17;
-    --surface:  #1a1a2e;
-    --surface2: #232338;
-    --border:   #2e2e4a;
-    --text:     #e8e8f0;
-    --muted:    #8888aa;
-    --blue:     #4a9eff;
-    --green:    #3ecf8e;
-    --purple:   #a78bfa;
-    --amber:    #fbbf24;
-    --red:      #f87171;
-    --radius:   10px;
-  }
-
-  body {
-    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
-    background: var(--bg);
-    color: var(--text);
-    min-height: 100vh;
-    padding: 24px 16px;
-  }
-
-  .app { max-width: 760px; margin: 0 auto; }
-
-  h1 {
-    font-size: 22px;
-    font-weight: 600;
-    color: var(--text);
-    margin-bottom: 4px;
-  }
-  .subtitle {
-    font-size: 13px;
-    color: var(--muted);
-    margin-bottom: 28px;
-  }
-
-  .card {
-    background: var(--surface);
-    border: 1px solid var(--border);
-    border-radius: var(--radius);
-    padding: 18px 20px;
-    margin-bottom: 14px;
-  }
-
-  .card-title {
-    font-size: 12px;
-    font-weight: 600;
-    color: var(--muted);
-    text-transform: uppercase;
-    letter-spacing: 0.06em;
-    margin-bottom: 12px;
-  }
-
-  label {
-    display: block;
-    font-size: 12px;
-    color: var(--muted);
-    margin-bottom: 5px;
-  }
-
-  input[type="text"], input[type="password"] {
-    width: 100%;
-    padding: 9px 12px;
-    background: var(--surface2);
-    border: 1px solid var(--border);
-    border-radius: 7px;
-    color: var(--text);
-    font-size: 13px;
-    outline: none;
-    transition: border-color 0.15s;
-  }
-  input:focus { border-color: var(--blue); }
-
-  .key-row {
-    display: flex;
-    gap: 8px;
-    align-items: flex-end;
-  }
-  .key-row input { flex: 1; }
-  .key-row button {
-    padding: 9px 14px;
-    font-size: 12px;
-    white-space: nowrap;
-  }
-
-  .tab-row {
-    display: flex;
-    gap: 6px;
-    margin-bottom: 16px;
-  }
-  .tab {
-    padding: 7px 16px;
-    border-radius: 20px;
-    font-size: 12px;
-    font-weight: 500;
-    cursor: pointer;
-    border: 1px solid var(--border);
-    background: transparent;
-    color: var(--muted);
-    transition: all 0.15s;
-  }
-  .tab:hover { border-color: var(--blue); color: var(--blue); }
-  .tab.active {
-    background: rgba(74,158,255,0.15);
-    border-color: var(--blue);
-    color: var(--blue);
-  }
-
-  .drop {
-    border: 1.5px dashed var(--border);
-    border-radius: var(--radius);
-    padding: 32px 20px;
-    text-align: center;
-    cursor: pointer;
-    transition: all 0.15s;
-  }
-  .drop:hover, .drop.over {
-    border-color: var(--green);
-    background: rgba(62,207,142,0.05);
-  }
-  .drop-icon {
-    width: 36px;
-    height: 36px;
-    margin: 0 auto 10px;
-    border-radius: 50%;
-    background: rgba(62,207,142,0.12);
-    display: flex;
-    align-items: center;
-    justify-content: center;
-  }
-  .drop-icon svg { width: 18px; height: 18px; stroke: var(--green); fill: none; stroke-width: 2; }
-  .drop-title { font-size: 14px; font-weight: 500; color: var(--text); margin-bottom: 4px; }
-  .drop-sub { font-size: 12px; color: var(--muted); }
-  .drop input { display: none; }
-
-  .waveform {
-    height: 52px;
-    background: var(--surface2);
-    border-radius: 7px;
-    overflow: hidden;
-    margin-top: 12px;
-    display: none;
-  }
-  canvas { display: block; width: 100%; height: 52px; }
-
-  .status {
-    font-size: 12px;
-    color: var(--muted);
-    margin-top: 10px;
-    min-height: 18px;
-    display: flex;
-    align-items: center;
-    gap: 8px;
-  }
-  .status.loading { color: var(--blue); }
-  .status.error   { color: var(--red); }
-  .status.done    { color: var(--green); }
-
-  .spinner {
-    width: 14px; height: 14px;
-    border: 2px solid rgba(74,158,255,0.3);
-    border-top-color: var(--blue);
-    border-radius: 50%;
-    animation: spin 0.7s linear infinite;
-    flex-shrink: 0;
-  }
-  @keyframes spin { to { transform: rotate(360deg); } }
-
-  .results { display: none; }
-
-  .file-badge {
-    display: inline-block;
-    font-size: 11px;
-    background: var(--surface2);
-    border: 1px solid var(--border);
-    border-radius: 5px;
-    padding: 2px 9px;
-    color: var(--muted);
-    margin-bottom: 14px;
-    max-width: 100%;
-    overflow: hidden;
-    text-overflow: ellipsis;
-    white-space: nowrap;
-  }
-
-  .legend {
-    display: flex;
-    gap: 14px;
-    font-size: 11px;
-    color: var(--muted);
-    margin-bottom: 12px;
-  }
-  .dot { width: 7px; height: 7px; border-radius: 50%; display: inline-block; margin-right: 4px; }
-
-  .fields-grid {
-    display: grid;
-    grid-template-columns: repeat(auto-fill, minmax(168px, 1fr));
-    gap: 8px;
-    margin-bottom: 14px;
-  }
-  .field-label {
-    font-size: 10px;
-    color: var(--muted);
-    margin-bottom: 4px;
-    font-weight: 500;
-  }
-  .field-value {
-    font-size: 12px;
-    font-weight: 500;
-    word-break: break-word;
-    line-height: 1.4;
-  }
-  .field-value.auto   { color: var(--blue); }
-  .field-value.ai     { color: var(--green); }
-  .field-value.world  { color: var(--purple); }
-  .field-value.empty  { color: var(--muted); font-style: italic; }
-
-  .field {
-    background: var(--surface2);
-    border: 1px solid var(--border);
-    border-radius: 8px;
-    padding: 10px 12px;
-    position: relative;
-    transition: border-color 0.15s;
-  }
-  .field:hover { border-color: #4a9eff55; }
-  .field-copy {
-    position: absolute;
-    top: 7px; right: 8px;
-    width: 20px; height: 20px;
-    display: flex; align-items: center; justify-content: center;
-    opacity: 0;
-    cursor: pointer;
-    border-radius: 4px;
-    transition: opacity 0.15s, background 0.1s;
-    background: transparent;
-    border: none;
-    padding: 0;
-  }
-  .field:hover .field-copy { opacity: 1; }
-  .field-copy:hover { background: rgba(74,158,255,0.15); }
-  .field-copy svg { width: 12px; height: 12px; stroke: var(--muted); fill: none; stroke-width: 1.8; stroke-linecap: round; stroke-linejoin: round; }
-  .field-copy.copied svg { stroke: var(--green); }
-  .field-copy.copied::after {
-    content: 'copied';
-    position: absolute;
-    top: -22px; right: 0;
-    font-size: 10px;
-    color: var(--green);
-    background: var(--surface);
-    border: 1px solid var(--border);
-    border-radius: 4px;
-    padding: 2px 6px;
-    white-space: nowrap;
-    pointer-events: none;
-  }
-
-  .caption-section { margin-bottom: 14px; }
-  .caption-label {
-    font-size: 11px;
-    color: var(--muted);
-    font-weight: 500;
-    margin-bottom: 6px;
-    text-transform: uppercase;
-    letter-spacing: 0.05em;
-  }
-  .caption-text {
-    background: var(--surface2);
-    border: 1px solid var(--border);
-    border-radius: 8px;
-    padding: 12px 14px;
-    font-size: 12px;
-    color: var(--green);
-    font-weight: 500;
-    line-height: 1.65;
-    word-break: break-word;
-    font-family: "SF Mono", "Fira Code", monospace;
-  }
-
-  .action-row { display: flex; gap: 8px; }
-
-  button {
-    padding: 9px 18px;
-    border-radius: 7px;
-    font-size: 13px;
-    font-weight: 500;
-    cursor: pointer;
-    border: 1px solid var(--border);
-    background: var(--surface2);
-    color: var(--text);
-    transition: all 0.15s;
-  }
-  button:hover { border-color: var(--blue); color: var(--blue); }
-  button.primary {
-    background: rgba(74,158,255,0.15);
-    border-color: var(--blue);
-    color: var(--blue);
-    flex: 1;
-  }
-  button.primary:hover { background: rgba(74,158,255,0.25); }
-  button.success {
-    background: rgba(62,207,142,0.15) !important;
-    border-color: var(--green) !important;
-    color: var(--green) !important;
-  }
-
-  .warn {
-    background: rgba(251,191,36,0.08);
-    border: 1px solid rgba(251,191,36,0.25);
-    border-radius: 7px;
-    padding: 9px 12px;
-    font-size: 11px;
-    color: var(--amber);
-    margin-bottom: 12px;
-  }
-
-  .divider {
-    border: none;
-    border-top: 1px solid var(--border);
-    margin: 14px 0;
-  }
-
-  a { color: var(--blue); text-decoration: none; }
-  a:hover { text-decoration: underline; }
-
-  footer {
-    text-align: center;
-    font-size: 11px;
-    color: var(--muted);
-    margin-top: 32px;
-    padding-top: 16px;
-    border-top: 1px solid var(--border);
-  }
+*, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+:root {
+  --bg:      #0f0f17;
+  --s1:      #1a1a2e;
+  --s2:      #232338;
+  --border:  #2e2e4a;
+  --text:    #e8e8f0;
+  --muted:   #8888aa;
+  --blue:    #4a9eff;
+  --green:   #3ecf8e;
+  --purple:  #a78bfa;
+  --amber:   #fbbf24;
+  --red:     #f87171;
+  --radius:  10px;
+}
+body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif; background: var(--bg); color: var(--text); min-height: 100vh; padding: 20px 16px 40px; }
+.app { max-width: 1100px; margin: 0 auto; }
+h1 { font-size: 20px; font-weight: 600; margin-bottom: 3px; }
+.sub { font-size: 12px; color: var(--muted); margin-bottom: 20px; }
+.card { background: var(--s1); border: 1px solid var(--border); border-radius: var(--radius); padding: 16px 18px; margin-bottom: 12px; }
+.row2 { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+.row3 { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 10px; }
+label { display: block; font-size: 11px; color: var(--muted); margin-bottom: 4px; }
+input[type=text], input[type=password] {
+  width: 100%; padding: 8px 11px; background: var(--s2); border: 1px solid var(--border);
+  border-radius: 7px; color: var(--text); font-size: 13px; outline: none;
+}
+input:focus { border-color: var(--blue); }
+button {
+  padding: 8px 16px; border-radius: 7px; font-size: 13px; font-weight: 500;
+  cursor: pointer; border: 1px solid var(--border); background: var(--s2);
+  color: var(--text); transition: all 0.15s;
+}
+button:hover { border-color: var(--blue); color: var(--blue); }
+button.primary { background: rgba(74,158,255,0.15); border-color: var(--blue); color: var(--blue); }
+button.primary:hover { background: rgba(74,158,255,0.28); }
+button.success { background: rgba(62,207,142,0.15); border-color: var(--green); color: var(--green); }
+button.danger  { background: rgba(248,113,113,0.12); border-color: var(--red); color: var(--red); }
+button:disabled { opacity: 0.4; cursor: not-allowed; }
+.tab-row { display: flex; gap: 6px; margin-bottom: 14px; }
+.tab { padding: 6px 14px; border-radius: 20px; font-size: 12px; font-weight: 500; cursor: pointer; border: 1px solid var(--border); background: transparent; color: var(--muted); transition: all 0.15s; }
+.tab.active { background: rgba(74,158,255,0.15); border-color: var(--blue); color: var(--blue); }
+.drop {
+  border: 1.5px dashed var(--border); border-radius: var(--radius); padding: 28px 20px;
+  text-align: center; cursor: pointer; transition: all 0.15s; position: relative;
+}
+.drop:hover, .drop.over { border-color: var(--green); background: rgba(62,207,142,0.04); }
+.drop input { display: none; }
+.drop-icon { width: 34px; height: 34px; margin: 0 auto 8px; border-radius: 50%; background: rgba(62,207,142,0.12); display: flex; align-items: center; justify-content: center; }
+.drop-icon svg { width: 17px; height: 17px; stroke: var(--green); fill: none; stroke-width: 2; }
+.drop-title { font-size: 14px; font-weight: 500; }
+.drop-sub { font-size: 11px; color: var(--muted); margin-top: 3px; }
+/* Queue */
+#queue { display: none; margin-top: 10px; }
+.q-item { display: flex; align-items: center; gap: 10px; padding: 7px 10px; background: var(--s2); border-radius: 7px; margin-bottom: 5px; font-size: 12px; }
+.q-name { flex: 1; color: var(--text); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.q-status { font-size: 11px; min-width: 70px; text-align: right; }
+.q-status.pending  { color: var(--muted); }
+.q-status.working  { color: var(--blue); }
+.q-status.done     { color: var(--green); }
+.q-status.error    { color: var(--red); }
+.spinner { width: 12px; height: 12px; border: 2px solid rgba(74,158,255,0.3); border-top-color: var(--blue); border-radius: 50%; animation: spin 0.7s linear infinite; display: inline-block; }
+@keyframes spin { to { transform: rotate(360deg); } }
+/* Progress */
+#progress-bar-wrap { background: var(--border); border-radius: 4px; height: 4px; margin: 10px 0 4px; display: none; }
+#progress-bar { height: 4px; background: var(--blue); border-radius: 4px; transition: width 0.3s; width: 0%; }
+#progress-label { font-size: 11px; color: var(--muted); margin-bottom: 10px; }
+/* Review table */
+#review-section { display: none; margin-top: 16px; }
+.review-header { display: flex; align-items: center; justify-content: space-between; margin-bottom: 10px; }
+.review-title { font-size: 14px; font-weight: 500; }
+.review-actions { display: flex; gap: 8px; align-items: center; }
+.select-all-row { display: flex; align-items: center; gap: 8px; margin-bottom: 8px; font-size: 12px; color: var(--muted); }
+.table-wrap { overflow-x: auto; border-radius: var(--radius); border: 1px solid var(--border); }
+table { width: 100%; border-collapse: collapse; font-size: 11px; min-width: 1200px; }
+thead th {
+  background: var(--s2); color: var(--muted); font-weight: 500; font-size: 10px;
+  text-transform: uppercase; letter-spacing: 0.04em; padding: 8px 8px; text-align: left;
+  position: sticky; top: 0; border-bottom: 1px solid var(--border); white-space: nowrap;
+}
+tbody tr { border-bottom: 0.5px solid var(--border); transition: background 0.1s; }
+tbody tr:hover { background: rgba(255,255,255,0.02); }
+tbody tr.selected { background: rgba(62,207,142,0.05); }
+tbody tr.has-error { background: rgba(248,113,113,0.05); }
+td { padding: 6px 8px; vertical-align: top; }
+td.check-cell { width: 30px; text-align: center; }
+td input[type=checkbox] { width: 14px; height: 14px; cursor: pointer; accent-color: var(--green); }
+td.filename-cell { max-width: 160px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; color: var(--text); font-weight: 500; }
+td.editable { cursor: text; }
+td.editable:hover { background: rgba(74,158,255,0.08); border-radius: 4px; }
+[contenteditable] { outline: none; }
+[contenteditable]:focus { background: rgba(74,158,255,0.12); border-radius: 4px; padding: 1px 3px; }
+.tag-auto   { color: var(--blue); }
+.tag-ai     { color: var(--green); }
+.tag-world  { color: var(--purple); }
+.tag-warn   { color: var(--amber); }
+.tag-error  { color: var(--red); font-size: 10px; }
+.push-bar { display: none; position: sticky; bottom: 0; background: var(--s1); border-top: 1px solid var(--border); padding: 12px 18px; margin-top: 14px; border-radius: 0 0 var(--radius) var(--radius); display: none; align-items: center; gap: 12px; }
+.push-count { font-size: 13px; color: var(--muted); flex: 1; }
+.push-count span { color: var(--green); font-weight: 500; }
+#status-bar { font-size: 12px; color: var(--muted); margin-top: 6px; min-height: 18px; }
+#status-bar.ok  { color: var(--green); }
+#status-bar.err { color: var(--red); }
 </style>
 </head>
 <body>
 <div class="app">
 
-  <h1>Game Audio Tagger</h1>
-  <p class="subtitle">Upload an audio file — get every column filled using your controlled vocabulary, ready to paste into your tagging sheet.</p>
+<h1>Game Audio Tagger</h1>
+<p class="sub">Drop multiple files — review all tags — push confirmed rows to your Google Sheet</p>
 
-  <!-- API Key -->
-  <div class="card">
-    <div class="card-title">Anthropic API key</div>
-    <div class="key-row">
-      <div style="flex:1">
-        <label>Your key — stays in memory only, never stored or sent anywhere except Anthropic</label>
+<!-- Config -->
+<div class="card">
+  <div class="row3">
+    <div>
+      <label>Anthropic API key</label>
+      <div style="display:flex;gap:6px">
         <input type="password" id="apiKey" placeholder="sk-ant-...">
-      </div>
-      <button onclick="toggleKeyVisibility()" id="toggleBtn">Show</button>
-    </div>
-    <div style="margin-top:8px;font-size:11px;color:var(--muted)">
-      Get a key at <a href="https://console.anthropic.com" target="_blank">console.anthropic.com</a>
-    </div>
-  </div>
-
-  <!-- World character -->
-  <div class="card">
-    <div class="card-title">World character</div>
-    <label>Your game world identity — same for every file in this project</label>
-    <input type="text" id="worldChar" placeholder="e.g. dark gothic fantasy" value="dark gothic fantasy">
-    <div style="margin-top:6px;font-size:11px;color:var(--muted)">This appears at the start of every caption. Set it once and leave it.</div>
-  </div>
-
-  <!-- Tab selector -->
-  <div class="tab-row">
-    <button class="tab active" onclick="setTab('music',this)">Music</button>
-    <button class="tab" onclick="setTab('sfx',this)">SFX</button>
-    <button class="tab" onclick="setTab('ui',this)">UI Sound</button>
-  </div>
-
-  <!-- Drop zone -->
-  <div class="card">
-    <div class="drop" id="dropzone"
-         onclick="document.getElementById('fileIn').click()"
-         ondragover="ev(event);this.classList.add('over')"
-         ondragleave="this.classList.remove('over')"
-         ondrop="handleDrop(event)">
-      <input type="file" id="fileIn" accept="audio/*,.ogg,.wav,.mp3,.flac,.aiff" onchange="handleFile(this.files[0])">
-      <div class="drop-icon">
-        <svg viewBox="0 0 24 24"><path d="M9 19V6l12-3v13"/><circle cx="6" cy="18" r="3"/><circle cx="18" cy="15" r="3"/></svg>
-      </div>
-      <div class="drop-title">Drop audio file here</div>
-      <div class="drop-sub">WAV · OGG · MP3 · FLAC · AIFF — or click to browse</div>
-    </div>
-    <div class="waveform" id="waveformWrap"><canvas id="wv"></canvas></div>
-    <div class="status" id="status"></div>
-  </div>
-
-  <!-- Results -->
-  <div class="results" id="results">
-    <div class="card">
-      <div class="file-badge" id="fileBadge"></div>
-      <div class="legend">
-        <span><span class="dot" style="background:var(--purple)"></span>world</span>
-        <span><span class="dot" style="background:var(--blue)"></span>auto-detected</span>
-        <span><span class="dot" style="background:var(--green)"></span>AI-tagged</span>
-      </div>
-      <div class="fields-grid" id="fieldsGrid"></div>
-      <hr class="divider">
-      <div class="caption-section">
-        <div class="caption-label">Assembled caption</div>
-        <div class="caption-text" id="captionText"></div>
-      </div>
-      <div class="warn" id="warnBox" style="display:none"></div>
-      <div class="action-row">
-        <button class="primary" id="copyBtn" onclick="copyRow()">Copy row — paste directly into sheet</button>
-        <button onclick="document.getElementById('fileIn').click()">New file</button>
+        <button onclick="toggleKey()" style="padding:8px 10px;flex-shrink:0" id="toggleBtn">Show</button>
       </div>
     </div>
+    <div>
+      <label>World character</label>
+      <input type="text" id="worldChar" value="dark gothic fantasy" placeholder="e.g. dark gothic fantasy">
+    </div>
+    <div>
+      <label>Google Sheet ID <span style="color:var(--muted)">(for push)</span></label>
+      <input type="text" id="sheetId" placeholder="1JF5QpH-3dQLwPne0N1i-...">
+    </div>
+  </div>
+</div>
+
+<!-- Tab selector -->
+<div class="tab-row">
+  <button class="tab active" onclick="setTab('sfx',this)">SFX</button>
+  <button class="tab" onclick="setTab('music',this)">Music</button>
+  <button class="tab" onclick="setTab('ui',this)">UI Sound</button>
+</div>
+
+<!-- Drop zone -->
+<div class="card">
+  <div class="drop" id="dropzone"
+       onclick="document.getElementById('fileIn').click()"
+       ondragover="ev(event);this.classList.add('over')"
+       ondragleave="this.classList.remove('over')"
+       ondrop="handleDrop(event)">
+    <input type="file" id="fileIn" accept="audio/*,.ogg,.wav,.mp3,.flac,.aiff" multiple
+           onchange="addFiles(this.files)">
+    <div class="drop-icon">
+      <svg viewBox="0 0 24 24"><path d="M9 19V6l12-3v13"/><circle cx="6" cy="18" r="3"/><circle cx="18" cy="15" r="3"/></svg>
+    </div>
+    <div class="drop-title">Drop audio files here</div>
+    <div class="drop-sub">WAV · OGG · MP3 · FLAC — select multiple or drop a folder</div>
   </div>
 
-  <footer>
-    Game Audio Tagger &nbsp;·&nbsp;
-    <a href="https://github.com/jony-brrrt/tag-tool" target="_blank">github.com/jony-brrrt/tag-tool</a>
-  </footer>
+  <div id="progress-bar-wrap"><div id="progress-bar"></div></div>
+  <div id="progress-label"></div>
+
+  <div id="queue"></div>
+
+  <div style="display:flex;gap:8px;margin-top:10px;align-items:center">
+    <button class="primary" id="runBtn" onclick="runAll()" disabled>Analyse & Tag all</button>
+    <button onclick="clearAll()" id="clearBtn" style="display:none">Clear</button>
+    <div id="status-bar"></div>
+  </div>
+</div>
+
+<!-- Review table -->
+<div id="review-section">
+  <div class="review-header">
+    <div class="review-title">Review tags</div>
+    <div class="review-actions">
+      <button onclick="selectAll(true)"  style="font-size:11px;padding:5px 10px">Select all</button>
+      <button onclick="selectAll(false)" style="font-size:11px;padding:5px 10px">Deselect all</button>
+      <button class="danger" onclick="removeSelected()" style="font-size:11px;padding:5px 10px">Remove selected</button>
+    </div>
+  </div>
+  <div class="table-wrap">
+    <table>
+      <thead id="tableHead"></thead>
+      <tbody id="tableBody"></tbody>
+    </table>
+  </div>
+
+  <div class="push-bar" id="pushBar">
+    <div class="push-count">
+      <span id="selectedCount">0</span> rows selected to push
+    </div>
+    <button class="primary" onclick="downloadCSV()">Download CSV</button>
+    <button class="success" onclick="pushToSheet()" id="pushBtn">Push to Google Sheet</button>
+  </div>
+</div>
 
 </div>
 
 <script>
-// ── State ────────────────────────────────────────────────────────────────────
-let currentTab = 'music';
-let autoData   = null;
-let taggedData = null;
+// ── State ─────────────────────────────────────────────────────────────────────
+let currentTab = 'sfx';
+let fileQueue  = [];   // {file, status, result}
+let tableRows  = [];   // tagged + reviewed rows
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
 function ev(e) { e.preventDefault(); }
-
-function setStatus(msg, type = '') {
-  const s = document.getElementById('status');
-  s.className = 'status' + (type ? ' ' + type : '');
-  if (type === 'loading') {
-    s.innerHTML = `<div class="spinner"></div><span>${msg}</span>`;
-  } else {
-    s.textContent = msg;
-  }
+function toggleKey() {
+  const i = document.getElementById('apiKey');
+  const b = document.getElementById('toggleBtn');
+  i.type = i.type === 'password' ? 'text' : 'password';
+  b.textContent = i.type === 'password' ? 'Show' : 'Hide';
 }
-
-function toggleKeyVisibility() {
-  const inp = document.getElementById('apiKey');
-  const btn = document.getElementById('toggleBtn');
-  if (inp.type === 'password') { inp.type = 'text';  btn.textContent = 'Hide'; }
-  else                         { inp.type = 'password'; btn.textContent = 'Show'; }
-}
-
 function setTab(tab, btn) {
   currentTab = tab;
   document.querySelectorAll('.tab').forEach(t => t.classList.remove('active'));
   btn.classList.add('active');
-  if (autoData) runTagging(autoData);
+}
+function setStatus(msg, type = '') {
+  const s = document.getElementById('status-bar');
+  s.textContent = msg;
+  s.className = type ? type : '';
 }
 
 // ── File handling ─────────────────────────────────────────────────────────────
 function handleDrop(e) {
   e.preventDefault();
   document.getElementById('dropzone').classList.remove('over');
-  const f = e.dataTransfer.files[0];
-  if (f) handleFile(f);
-}
-
-async function handleFile(file) {
-  if (!file) return;
-  const key = document.getElementById('apiKey').value.trim();
-  if (!key) { setStatus('Enter your Anthropic API key first.', 'error'); return; }
-
-  document.getElementById('results').style.display = 'none';
-  document.getElementById('fileBadge').textContent = file.name;
-  setStatus('Analysing audio…', 'loading');
-
-  try {
-    const buf = await file.arrayBuffer();
-    const Ctx = window.AudioContext || window.webkitAudioContext;
-    const ctx = new Ctx();
-    const decoded = await ctx.decodeAudioData(buf.slice(0));
-
-    const ch0 = decoded.getChannelData(0);
-    drawWaveform(ch0);
-
-    const duration = Math.round(decoded.duration * 10) / 10;
-    const bpm      = Math.round(await estimateBPM(ch0, decoded.sampleRate));
-    const key      = estimateKey(ch0, decoded.sampleRate);
-    const rms      = Math.round(calcRMS(ch0) * 1000) / 1000;
-    const chLabel  = decoded.numberOfChannels > 1 ? 'stereo' : 'mono';
-    const spectral = analyseSpectral(ch0, decoded.sampleRate);
-
-    autoData = {
-      filename: file.name, duration, bpm, key, rms,
-      channelLabel: chLabel,
-      spectralCentroid: spectral.centroid,
-      lowEnergyRatio:   spectral.lowRatio,
-      highEnergyRatio:  spectral.highRatio,
-      dominantBand:     spectral.dominantBand,
-      durationMs:       Math.round(decoded.duration * 1000),
-    };
-    ctx.close();
-
-    setStatus('Asking Claude to tag…', 'loading');
-    await runTagging(autoData);
-  } catch(err) {
-    setStatus('Error: ' + err.message, 'error');
+  const items = e.dataTransfer.items;
+  const files = [];
+  if (items) {
+    for (const item of items) {
+      if (item.kind === 'file') files.push(item.getAsFile());
+    }
+  } else {
+    for (const f of e.dataTransfer.files) files.push(f);
   }
+  addFiles(files);
 }
 
-// ── Audio analysis ────────────────────────────────────────────────────────────
-function calcRMS(data) {
+const AUDIO_EXTS = new Set(['.wav','.ogg','.mp3','.flac','.aiff','.aif']);
+
+function addFiles(files) {
+  const audioFiles = [...files].filter(f => {
+    const ext = '.' + f.name.split('.').pop().toLowerCase();
+    return AUDIO_EXTS.has(ext);
+  });
+
+  if (!audioFiles.length) {
+    setStatus('No audio files found in selection', 'err');
+    return;
+  }
+
+  audioFiles.forEach(f => {
+    // Avoid duplicates within the queue
+    if (!fileQueue.find(q => q.file.name === f.name && q.file.size === f.size)) {
+      fileQueue.push({ file: f, status: 'pending', result: null });
+    }
+  });
+
+  renderQueue();
+  document.getElementById('runBtn').disabled = false;
+  document.getElementById('clearBtn').style.display = '';
+  setStatus(`${fileQueue.length} file${fileQueue.length > 1 ? 's' : ''} queued`);
+}
+
+function renderQueue() {
+  const el = document.getElementById('queue');
+  if (!fileQueue.length) { el.style.display = 'none'; return; }
+  el.style.display = 'block';
+  el.innerHTML = fileQueue.map((q, i) => `
+    <div class="q-item" id="qi-${i}">
+      <div class="q-name" title="${q.file.name}">${q.file.name}</div>
+      <div class="q-status ${q.status}" id="qs-${i}">
+        ${q.status === 'working' ? '<span class="spinner"></span>' :
+          q.status === 'done'    ? '✓ tagged' :
+          q.status === 'error'   ? '✗ error' : 'pending'}
+      </div>
+    </div>`).join('');
+}
+
+function clearAll() {
+  fileQueue = [];
+  tableRows = [];
+  renderQueue();
+  document.getElementById('runBtn').disabled = true;
+  document.getElementById('clearBtn').style.display = 'none';
+  document.getElementById('review-section').style.display = 'none';
+  document.getElementById('progress-bar-wrap').style.display = 'none';
+  document.getElementById('progress-label').textContent = '';
+  setStatus('');
+}
+
+// ── Audio analysis (browser-side) ─────────────────────────────────────────────
+async function analyseFile(file) {
+  const buf     = await file.arrayBuffer();
+  const Ctx     = window.AudioContext || window.webkitAudioContext;
+  const ctx     = new Ctx();
+  const decoded = await ctx.decodeAudioData(buf.slice(0));
+  const ch0     = decoded.getChannelData(0);
+  ctx.close();
+
+  const duration    = Math.round(decoded.duration * 10) / 10;
+  const durationMs  = Math.round(decoded.duration * 1000);
+  const rms         = Math.round(calcRMS(ch0) * 1000) / 1000;
+  const channels    = decoded.numberOfChannels > 1 ? 'stereo' : 'mono';
+  const spectral    = analyseSpectral(ch0, decoded.sampleRate);
+  const bpm         = Math.round(await estimateBPM(ch0, decoded.sampleRate));
+  const key         = estimateKey(ch0, decoded.sampleRate);
+
+  return { filename: file.name, duration, durationMs, bpm, key, rms,
+           channelLabel: channels, ...spectral };
+}
+
+function calcRMS(d) {
   let s = 0, n = 0;
-  const step = Math.max(1, Math.floor(data.length / 8000));
-  for (let i = 0; i < data.length; i += step) { s += data[i]**2; n++; }
+  const step = Math.max(1, Math.floor(d.length / 8000));
+  for (let i = 0; i < d.length; i += step) { s += d[i]**2; n++; }
   return Math.sqrt(s / n);
 }
 
 function analyseSpectral(data, sr) {
-  // DFT on a representative chunk to get frequency band energies
   const chunkSize = Math.min(4096, data.length);
-  const start     = Math.floor(data.length * 0.1); // skip first 10% (silence/noise)
-  const chunk     = data.slice(start, start + chunkSize);
-
-  // Hann window
+  const start = Math.floor(data.length * 0.1);
+  const chunk = data.slice(start, start + chunkSize);
   const windowed = new Float32Array(chunkSize);
-  for (let i = 0; i < chunkSize; i++) {
+  for (let i = 0; i < chunkSize; i++)
     windowed[i] = chunk[i] * (0.5 - 0.5 * Math.cos(2 * Math.PI * i / chunkSize));
-  }
 
-  // Compute magnitude spectrum via DFT (sampled at key frequencies)
-  // Bands: sub (20-80Hz), low (80-300Hz), mid (300-2000Hz), high (2000-8000Hz), air (8000+)
   const bands = [
-    { name: 'sub',  lo: 20,   hi: 80   },
-    { name: 'low',  lo: 80,   hi: 300  },
-    { name: 'mid',  lo: 300,  hi: 2000 },
-    { name: 'high', lo: 2000, hi: 8000 },
-    { name: 'air',  lo: 8000, hi: 20000},
+    { name:'sub',  lo:20,   hi:80   },
+    { name:'low',  lo:80,   hi:300  },
+    { name:'mid',  lo:300,  hi:2000 },
+    { name:'high', lo:2000, hi:8000 },
   ];
-
   const bandEnergy = {};
-  let totalEnergy  = 0;
-  let weightedFreq = 0;
+  let totalE = 0, weightedF = 0;
 
   for (const band of bands) {
     let e = 0;
-    const freqStep = (band.hi - band.lo) / 8;
-    for (let f = band.lo; f <= band.hi; f += freqStep) {
+    const step = (band.hi - band.lo) / 8;
+    for (let f = band.lo; f <= band.hi; f += step) {
       if (f > sr / 2) continue;
-      const k = f / sr;
-      const w = 2 * Math.PI * k;
-      const cw = 2 * Math.cos(w);
+      const k = f / sr, w = 2 * Math.PI * k, cw = 2 * Math.cos(w);
       let s1 = 0, s2 = 0;
       for (let i = 0; i < chunkSize; i++) {
-        const s0 = cw * s1 - s2 + windowed[i];
-        s2 = s1; s1 = s0;
+        const s0 = cw*s1 - s2 + windowed[i]; s2 = s1; s1 = s0;
       }
       const mag = Math.sqrt(s1*s1 + s2*s2 - s1*s2*cw);
-      e += mag;
-      weightedFreq += mag * f;
-      totalEnergy  += mag;
+      e += mag; weightedF += mag * f; totalE += mag;
     }
     bandEnergy[band.name] = e;
   }
-
-  const centroid     = totalEnergy > 0 ? Math.round(weightedFreq / totalEnergy) : 500;
-  const totalBand    = Object.values(bandEnergy).reduce((a,b)=>a+b, 0) || 1;
-  const lowRatio     = Math.round(100 * (bandEnergy.sub + bandEnergy.low) / totalBand);
-  const highRatio    = Math.round(100 * (bandEnergy.high + bandEnergy.air) / totalBand);
+  const centroid    = totalE > 0 ? Math.round(weightedF / totalE) : 500;
+  const total       = Object.values(bandEnergy).reduce((a,b)=>a+b,0) || 1;
+  const lowRatio    = Math.round(100*(bandEnergy.sub+bandEnergy.low)/total);
+  const highRatio   = Math.round(100*(bandEnergy.mid+bandEnergy.high)/total);
   const dominantBand = Object.entries(bandEnergy).sort((a,b)=>b[1]-a[1])[0][0];
-
-  return { centroid, lowRatio, highRatio, dominantBand };
+  return { spectralCentroid: centroid, lowEnergyRatio: lowRatio,
+           highEnergyRatio: highRatio, dominantBand };
 }
 
 async function estimateBPM(data, sr) {
-  // Downsample to 4000 Hz for speed
-  const targetSr  = 4000;
-  const ratio     = Math.floor(sr / targetSr);
-  const maxFrames = Math.floor(Math.min(sr * 30, data.length) / ratio);
-  const downsampled = new Float32Array(maxFrames);
-  for (let i = 0; i < maxFrames; i++) downsampled[i] = data[i * ratio];
-
-  // Onset envelope via half-wave rectified first-order RMS difference
+  const targetSr = 4000, ratio = Math.floor(sr / targetSr);
+  const maxFrames = Math.floor(Math.min(sr*30, data.length) / ratio);
+  const ds = new Float32Array(maxFrames);
+  for (let i = 0; i < maxFrames; i++) ds[i] = data[i * ratio];
   const hopSize = Math.floor(targetSr * 0.01);
-  const numHops = Math.floor(downsampled.length / hopSize);
-  const envelope = new Float32Array(numHops);
-  let prevRMS = 0;
+  const numHops = Math.floor(ds.length / hopSize);
+  const env = new Float32Array(numHops);
+  let prev = 0;
   for (let h = 0; h < numHops; h++) {
     let e = 0;
-    for (let i = 0; i < hopSize; i++) e += downsampled[h * hopSize + i] ** 2;
-    const rms = Math.sqrt(e / hopSize);
-    envelope[h] = Math.max(0, rms - prevRMS);
-    prevRMS = rms;
+    for (let i = 0; i < hopSize; i++) e += ds[h*hopSize+i]**2;
+    const rms = Math.sqrt(e/hopSize);
+    env[h] = Math.max(0, rms - prev); prev = rms;
   }
-
-  // Normalize
-  const maxE = Math.max(...envelope) || 1;
-  for (let i = 0; i < envelope.length; i++) envelope[i] /= maxE;
-
-  // Autocorrelation over BPM range 50-200
+  const maxE = Math.max(...env) || 1;
+  for (let i = 0; i < env.length; i++) env[i] /= maxE;
   const hopSecs = 0.01;
-  const minLag  = Math.round(60 / 200 / hopSecs);
-  const maxLag  = Math.round(60 /  50 / hopSecs);
-  let bestLag   = minLag;
-  let bestCorr  = -Infinity;
-  const commonBPMs = [60,70,80,90,100,110,120,130,140,150,160,170,180];
-
+  const minLag = Math.round(60/200/hopSecs), maxLag = Math.round(60/50/hopSecs);
+  let bestLag = minLag, bestCorr = -Infinity;
+  const common = [60,70,80,90,100,110,120,130,140,150,160,170,180];
   for (let lag = minLag; lag <= maxLag; lag++) {
-    let corr = 0;
-    const n = envelope.length - lag;
-    if (n <= 0) continue;
-    for (let i = 0; i < n; i++) corr += envelope[i] * envelope[i + lag];
+    let corr = 0; const n = env.length - lag; if (n <= 0) continue;
+    for (let i = 0; i < n; i++) corr += env[i] * env[i+lag];
     corr /= n;
-    const bpmAtLag = 60 / (lag * hopSecs);
-    const nearest  = commonBPMs.reduce((a,b) => Math.abs(b-bpmAtLag)<Math.abs(a-bpmAtLag)?b:a);
-    corr *= 1 + 0.15 * Math.exp(-((bpmAtLag - nearest)**2) / 50);
+    const bpmAtLag = 60/(lag*hopSecs);
+    const nearest = common.reduce((a,b) => Math.abs(b-bpmAtLag)<Math.abs(a-bpmAtLag)?b:a);
+    corr *= 1 + 0.15*Math.exp(-((bpmAtLag-nearest)**2)/50);
     if (corr > bestCorr) { bestCorr = corr; bestLag = lag; }
   }
-
   if (bestCorr < 0.002) return 0;
-  let result = Math.round(60 / (bestLag * hopSecs));
-  while (result > 160) result = Math.round(result / 2);
-  while (result < 60)  result = Math.round(result * 2);
-  if (result < 40 || result > 220) return 0;
-  return result;
+  let r = Math.round(60/(bestLag*hopSecs));
+  while (r > 160) r = Math.round(r/2);
+  while (r < 60)  r = Math.round(r*2);
+  return (r < 40 || r > 220) ? 0 : r;
 }
 
 function estimateKey(data, sr) {
   const notes = ['C','C#','D','D#','E','F','F#','G','G#','A','A#','B'];
-
-  // Krumhansl-Schmuckler key profiles
-  const majorProfile = [6.35,2.23,3.48,2.33,4.38,4.09,2.52,5.19,2.39,3.66,2.29,2.88];
-  const minorProfile = [6.33,2.68,3.52,5.38,2.60,3.53,2.54,4.75,3.98,2.69,3.34,3.17];
-
-  // Build chroma using FFT-based energy per pitch class
-  // Analyse up to 45 seconds in 0.5s windows, summing energy per chroma bin
-  const maxSamples = Math.min(sr * 45, data.length);
-  const windowSize = Math.min(sr / 2, 8192); // ~0.5s or 8192 samples
-  const chroma = new Float32Array(12);
-
-  for (let start = 0; start < maxSamples - windowSize; start += windowSize) {
-    // Compute FFT magnitudes via DFT on windowed segment
-    // For each of 12 pitch classes, sum energy of harmonics 1-8
-    const fundamentals = [
-      // C2 through B2 (65 Hz - 123 Hz range), MIDI 36-47
-      65.41,69.30,73.42,77.78,82.41,87.31,92.50,98.00,103.83,110.00,116.54,123.47
-    ];
-    for (let pc = 0; pc < 12; pc++) {
-      let energy = 0;
-      for (let harm = 1; harm <= 6; harm++) {
-        const freq = fundamentals[pc] * harm;
-        if (freq > sr / 2) break;
-        // Goertzel algorithm for single frequency energy
-        const k  = freq / sr;
-        const w  = 2 * Math.PI * k;
-        const cw = 2 * Math.cos(w);
-        let s0 = 0, s1 = 0, s2 = 0;
-        for (let i = start; i < start + windowSize; i++) {
-          // Hann window
-          const win = 0.5 - 0.5 * Math.cos(2 * Math.PI * (i - start) / windowSize);
-          s0 = cw * s1 - s2 + data[i] * win;
-          s2 = s1;
-          s1 = s0;
-        }
-        const mag = Math.sqrt(s1*s1 + s2*s2 - s1*s2*cw);
-        // Weight higher harmonics less
-        energy += mag / harm;
-      }
-      chroma[pc] += energy;
+  const major = [6.35,2.23,3.48,2.33,4.38,4.09,2.52,5.19,2.39,3.66,2.29,2.88];
+  const minor = [6.33,2.68,3.52,5.38,2.60,3.53,2.54,4.75,3.98,2.69,3.34,3.17];
+  const chroma = new Array(12).fill(0);
+  const step = Math.max(1, Math.floor(sr/200));
+  const sample = data.slice(0, Math.min(sr*8, data.length));
+  for (let i = 0; i < sample.length-step; i += step)
+    for (let n = 0; n < 12; n++) {
+      const freq = 261.63 * Math.pow(2, n/12);
+      const phase = (i * freq / sr) % 1;
+      chroma[n] += Math.abs(sample[i]) * Math.cos(2*Math.PI*phase);
     }
+  const mx = Math.max(...chroma)||1;
+  const cn = chroma.map(v=>v/mx);
+  function pearson(a,b) {
+    const ma=a.reduce((s,v)=>s+v,0)/12, mb=b.reduce((s,v)=>s+v,0)/12;
+    let num=0,da=0,db=0;
+    for(let i=0;i<12;i++){const xa=a[i]-ma,xb=b[i]-mb;num+=xa*xb;da+=xa*xa;db+=xb*xb;}
+    return num/(Math.sqrt(da*db)||1);
   }
-
-  // Normalize chroma vector
-  const chromaMax = Math.max(...chroma) || 1;
-  for (let i = 0; i < 12; i++) chroma[i] /= chromaMax;
-
-  // Pearson correlation with all 24 key profiles (12 major + 12 minor)
-  function pearson(a, b) {
-    const n   = a.length;
-    const ma  = a.reduce((s,v)=>s+v,0)/n;
-    const mb  = b.reduce((s,v)=>s+v,0)/n;
-    let num=0, da=0, db=0;
-    for (let i=0;i<n;i++){
-      const xa=a[i]-ma, xb=b[i]-mb;
-      num+=xa*xb; da+=xa*xa; db+=xb*xb;
-    }
-    return num / (Math.sqrt(da*db) || 1);
+  let bestKey='C major', bestCorr=-999;
+  for (let root=0; root<12; root++) {
+    const maj=major.map((_,i)=>major[(i-root+12)%12]);
+    const min=minor.map((_,i)=>minor[(i-root+12)%12]);
+    const mc=pearson(cn,maj), nc=pearson(cn,min);
+    if(mc>bestCorr){bestCorr=mc;bestKey=notes[root]+' major';}
+    if(nc>bestCorr){bestCorr=nc;bestKey=notes[root]+' minor';}
   }
-
-  let bestKey  = 'C major';
-  let bestCorr = -Infinity;
-
-  for (let root = 0; root < 12; root++) {
-    // Rotate profiles to this root
-    const majProf = majorProfile.map((_,i) => majorProfile[(i - root + 12) % 12]);
-    const minProf = minorProfile.map((_,i) => minorProfile[(i - root + 12) % 12]);
-
-    const majCorr = pearson(Array.from(chroma), majProf);
-    const minCorr = pearson(Array.from(chroma), minProf);
-
-    if (majCorr > bestCorr) { bestCorr = majCorr; bestKey = notes[root] + ' major'; }
-    if (minCorr > bestCorr) { bestCorr = minCorr; bestKey = notes[root] + ' minor'; }
-  }
-
   return bestKey;
 }
 
-function drawWaveform(data) {
-  const wrap   = document.getElementById('waveformWrap');
-  wrap.style.display = 'block';
-  const canvas = document.getElementById('wv');
-  const ctx    = canvas.getContext('2d');
-  canvas.width  = canvas.offsetWidth  * devicePixelRatio;
-  canvas.height = 52 * devicePixelRatio;
-  ctx.scale(devicePixelRatio, devicePixelRatio);
-  const W = canvas.offsetWidth, H = 52;
-  ctx.clearRect(0, 0, W, H);
-  const step = Math.ceil(data.length / W);
-  ctx.strokeStyle = '#3ecf8e';
-  ctx.lineWidth   = 1;
-  for (let x = 0; x < W; x++) {
-    let mn = 1, mx = -1;
-    for (let i = 0; i < step; i++) {
-      const d = data[x * step + i] || 0;
-      if (d < mn) mn = d;
-      if (d > mx) mx = d;
-    }
-    ctx.beginPath();
-    ctx.moveTo(x, (1 + mn) * H / 2);
-    ctx.lineTo(x, (1 + mx) * H / 2);
-    ctx.stroke();
-  }
-}
-
 // ── Claude API ────────────────────────────────────────────────────────────────
-async function runTagging(a) {
-  const key   = document.getElementById('apiKey').value.trim();
-  const world = document.getElementById('worldChar').value.trim() || 'dark gothic fantasy';
+function buildPrompt(a, world, tab) {
+  if (tab === 'sfx') return `You are an expert game audio tagger. Return ONLY valid JSON — no markdown, no explanation.
 
-  const prompts = {
-    music: `You are an expert game audio tagger. Analyse this audio and return ONLY valid JSON — no markdown fences, no explanation, nothing else.
+Audio: filename="${a.filename}", duration=${a.durationMs}ms, RMS=${a.rms}, spectralCentroid=${a.spectralCentroid}Hz, lowEnergy=${a.lowEnergyRatio}%, highEnergy=${a.highEnergyRatio}%, channels=${a.channelLabel}
+World: "${world}"
 
-Audio: filename="${a.filename}", duration=${a.duration}s, est BPM=${a.bpm||'unclear'}, est key (with mode): ${a.key}, RMS=${a.rms}, channels=${a.channelLabel}
-World character (fixed): "${world}"
+REASONING — apply in order:
+STEP1 VOCAL: Assume vocal IS present unless filename says weapon_only/no_vocal/pure/door/footstep/ambient OR action is draw/sheathe.
+  female/woman/girl/_f_→female type. male/man/knight/soldier→male. goblin/imp→monster growl high. orc/beast→monster growl low. boss/giant/dragon→monster roar. undead/banshee→monster shriek. mage/wizard→magic incantation.
+  heavy/slow→grunt. light/fast→exhale. charge/power→battle cry. hit_reaction/pain→pain grunt.
+STEP2 WEIGHT: <300ms→very light. 300-600ms+highFreq>35%→light. 300-900ms→medium. >900ms OR lowEnergy>45%→heavy. >1500ms→very heavy.
 
-Return exactly this JSON structure with values ONLY from the allowed lists:
-{
-  "asset_type": "music" | "stinger" | "ambience",
-  "game_context": "game combat" | "game exploration" | "game boss fight" | "game menu" | "game cutscene" | "game ambient",
-  "instrumentation": "comma-separated instruments inferred from filename and context",
-  "mood_primary": "aggressive" | "tense" | "melancholic" | "eerie" | "triumphant" | "hopeful" | "desperate" | "calm" | "mysterious" | "dread",
-  "mood_secondary": same options or "",
-  "intensity": "very low intensity" | "low intensity" | "mid intensity" | "high intensity" | "very high intensity",
-  "key_confirmed": "full key with mode e.g. D minor, G phrygian, A major — use — if unclear",
-  "bpm_confirmed": integer or 0 if ambient/unclear,
-  "structure": "loop, no arc" | "builds to climax" | "intro then loop" | "verse build drop" | "slow build" | "climax then resolve" | "short sting no arc",
-  "loop_ready": "yes" | "no",
-  "technical_flags": "comma-separated subset of: loop-ready, no intro, no outro, stereo, mono, fade out, stems available",
-  "warnings": "any confidence concerns e.g. BPM unclear, or empty string"
-}`,
+Return JSON:
+{"game_context":"game combat"|"game movement"|"game environment"|"game death"|"game reward"|"game UI","weapon_action":"strike"|"swing"|"throw"|"arch"|"magic cast"|"block"|"parry"|"draw"|"sheathe","weapon_type":"sword"|"greatsword"|"dagger"|"spear"|"axe"|"warhammer"|"bow"|"crossbow"|"staff"|"wand"|"fists"|"shield"|"arrow","weapon_material":"steel"|"iron"|"bronze"|"wood"|"bone"|"stone"|"crystal"|"arcane"|"shadow"|"wood, iron"|"wood, crystal"|"flesh, leather","holder_type":"heavy knight"|"light rogue"|"soldier"|"archer"|"mage"|"beast"|"goblin"|"giant"|"undead","holder_weight":"very heavy"|"heavy"|"medium"|"light"|"very light","motion_character":"heavy slow whoosh"|"fast sharp whoosh"|"short snap"|"long arc whoosh"|"arrow flight"|"no whoosh"|"spinning tumble"|"magic swirl","impact_surface":"armour"|"flesh"|"stone"|"wood"|"shield"|"ground"|"air"|"magic barrier","impact_character":"deep thud"|"sharp crack"|"metallic ring"|"wet impact"|"hollow knock"|"glancing blow"|"crushing impact"|"piercing"|"energy burst","elemental":"none"|"fire"|"lightning"|"ice"|"poison"|"shadow"|"arcane"|"wind","vocal":"none"|"male grunt heavy"|"male grunt medium"|"male exhale sharp"|"male battle cry"|"female grunt sharp"|"female exhale controlled"|"female battle cry"|"monster growl low"|"monster growl high"|"monster roar"|"monster shriek"|"pain grunt male"|"pain grunt female"|"pain cry monster"|"magic incantation","aftermath":"none"|"burn crackle"|"electric echo"|"dissolve"|"bleed"|"echo ring"|"shatter"|"thunder rumble"|"void resonance","space":"dry"|"small room"|"medium room"|"large hall"|"outdoor","intensity":"very low intensity"|"low intensity"|"mid intensity"|"high intensity"|"very high intensity","channel":"mono"|"stereo","variant_id":"","technical_flags":"one-shot, mono, dry","warnings":""}`;
 
-    sfx: `You are an expert game audio tagger specialising in combat and action SFX. Return ONLY valid JSON — no markdown, no explanation.
+  if (tab === 'music') return `You are an expert game audio tagger. Return ONLY valid JSON.
 
-Audio analysis:
-- filename: "${a.filename}"
-- duration: ${a.durationMs}ms (${a.duration}s)
-- RMS loudness: ${a.rms} (0=silent, 0.3+=loud)
-- spectral centroid: ${a.spectralCentroid}Hz  (female voice ~200-400Hz fundamental, male ~80-180Hz, weapons ~300-1200Hz, impacts ~100-600Hz)
-- low frequency energy: ${a.lowEnergyRatio}%  (high % = heavy/male/bass-heavy)
-- high frequency energy: ${a.highEnergyRatio}% (high % = bright/female/metallic/air)
-- dominant band: ${a.dominantBand}
-- channels: ${a.channelLabel}
-- world character: "${world}"
+Audio: filename="${a.filename}", duration=${a.duration}s, BPM=${a.bpm||'unclear'}, key=${a.key}, RMS=${a.rms}, channels=${a.channelLabel}
+World: "${world}"
 
-CRITICAL REASONING RULES — read all before writing any value:
+{"asset_type":"music"|"stinger"|"ambience","game_context":"game combat"|"game exploration"|"game boss fight"|"game menu"|"game cutscene"|"game ambient","instrumentation":"comma-separated instruments","mood_primary":"aggressive"|"tense"|"melancholic"|"eerie"|"triumphant"|"hopeful"|"desperate"|"calm"|"mysterious"|"dread","mood_secondary":"same options or empty","intensity":"very low intensity"|"low intensity"|"mid intensity"|"high intensity"|"very high intensity","key_confirmed":"full key with mode e.g. D minor","bpm_confirmed":0,"structure":"loop, no arc"|"builds to climax"|"intro then loop"|"verse build drop"|"slow build"|"climax then resolve"|"short sting no arc","loop_ready":"yes"|"no","technical_flags":"loop-ready, no intro, no outro, stereo","warnings":""}`;
 
-STEP 1 — VOCAL DETECTION (bias toward detecting vocal, not away from it):
-Most combat SFX from real game audio libraries INCLUDE a vocal layer. Default assumption = vocal is present unless:
-  a) filename explicitly says "no_vocal", "weapon_only", "pure", "sfx_only"
-  b) filename is purely descriptive of a non-human object: "door_creak", "fire_loop", "footstep"
-  c) draw/sheathe sounds — these rarely have vocals
-
-If the filename mentions a character at all (knight, warrior, female, male, hero, enemy, goblin, boss, orc etc.) — ASSUME there is a vocal and pick the most appropriate type.
-
-STEP 2 — VOCAL GENDER from filename (filename beats spectral data):
-  female / woman / girl / _f_ / _f. / fem / _female → female type
-  male / man / _m_ / _m. / knight / soldier / warrior / hero (default) → male type
-  goblin / imp / rat / sprite / pixie / small → monster growl high
-  orc / troll / ogre / beast / demon / creature → monster growl low
-  boss / giant / dragon / colossus / titan → monster roar
-  ghost / undead / wraith / banshee / zombie → monster shriek
-  mage / wizard / witch / sorcerer → magic incantation
-
-STEP 3 — VOCAL TYPE from attack weight and action:
-  heavy/slow/powerful attack → grunt (not exhale)
-  light/fast/quick attack    → exhale or sharp grunt
-  charge / power_strike / combo_ender → battle cry
-  receiving_hit / hit_reaction / pain → pain grunt
-
-STEP 4 — ATTACK WEIGHT from spectral + duration:
-  durationMs < 300 → very light
-  durationMs 300–600 AND highEnergyRatio > 35% → light
-  durationMs 300–900 → medium
-  durationMs 900–1500 OR lowEnergyRatio > 45% → heavy
-  durationMs > 1500 OR (lowEnergyRatio > 50% AND RMS > 0.15) → very heavy
-
-Filename overrides all spectral guesses. "light_attack_female_03.wav" → holder_weight:light, vocal:female exhale controlled.
-
-Return exactly this JSON with values ONLY from the allowed lists:
-{
-  "asset_type": "sfx",
-  "game_context": "game combat" | "game movement" | "game environment" | "game death" | "game reward" | "game UI",
-  "weapon_action": "strike" | "swing" | "throw" | "arch" | "magic cast" | "block" | "parry" | "draw" | "sheathe",
-  "weapon_type": "sword" | "greatsword" | "dagger" | "spear" | "axe" | "warhammer" | "bow" | "crossbow" | "staff" | "wand" | "fists" | "shield" | "arrow",
-  "weapon_material": "steel" | "iron" | "bronze" | "wood" | "bone" | "stone" | "crystal" | "arcane" | "shadow" | "wood, iron" | "wood, crystal" | "flesh, leather",
-  "holder_type": "heavy knight" | "light rogue" | "soldier" | "archer" | "mage" | "beast" | "goblin" | "giant" | "undead",
-  "holder_weight": "very heavy" | "heavy" | "medium" | "light" | "very light",
-  "motion_character": "heavy slow whoosh" | "fast sharp whoosh" | "short snap" | "long arc whoosh" | "arrow flight" | "no whoosh" | "spinning tumble" | "magic swirl",
-  "impact_surface": "armour" | "flesh" | "stone" | "wood" | "shield" | "ground" | "air" | "magic barrier",
-  "impact_character": "deep thud" | "sharp crack" | "metallic ring" | "wet impact" | "hollow knock" | "glancing blow" | "crushing impact" | "piercing" | "energy burst",
-  "elemental": "none" | "fire" | "lightning" | "ice" | "poison" | "shadow" | "arcane" | "wind",
-  "vocal": "none" | "male grunt heavy" | "male grunt medium" | "male exhale sharp" | "male battle cry" | "female grunt sharp" | "female exhale controlled" | "female battle cry" | "monster growl low" | "monster growl high" | "monster roar" | "monster shriek" | "pain grunt male" | "pain grunt female" | "pain cry monster" | "magic incantation",
-  "aftermath": "none" | "burn crackle" | "electric echo" | "dissolve" | "bleed" | "echo ring" | "shatter" | "thunder rumble" | "void resonance",
-  "space": "dry" | "small room" | "medium room" | "large hall" | "outdoor",
-  "intensity": "very low intensity" | "low intensity" | "mid intensity" | "high intensity" | "very high intensity",
-  "channel": "mono" | "stereo",
-  "variant_id": "",
-  "technical_flags": "comma-separated subset of: one-shot, mono, stereo, dry, short transient, long tail, looping",
-  "warnings": "any uncertainty e.g. filename unclear, or empty string"
-}`,
-
-    ui: `You are an expert game audio tagger. Return ONLY valid JSON — no markdown, no explanation.
+  return `You are an expert game audio tagger. Return ONLY valid JSON.
 
 Audio: filename="${a.filename}", duration=${a.duration}s, RMS=${a.rms}, channels=${a.channelLabel}
-World character: "${world}"
+World: "${world}"
 
-{
-  "asset_type": "ui sound",
-  "game_context": "game UI",
-  "interaction_type": "confirm" | "cancel" | "hover" | "scroll" | "error" | "success" | "notification" | "reward" | "transition",
-  "tonal_character": "bright" | "warm" | "neutral" | "digital" | "organic" | "dark" | "metallic" | "wooden",
-  "sound_source": "what makes this sound e.g. small metal bell, wooden click, crystal resonance",
-  "mood": "positive" | "negative" | "neutral" | "triumphant",
-  "intensity": "very low intensity" | "low intensity" | "mid intensity" | "high intensity" | "very high intensity",
-  "tonal_match": "yes" | "partial" | "no",
-  "channel": "mono" | "stereo",
-  "technical_flags": "comma-separated subset of: one-shot, stereo, mono, short transient, no tail, tail",
-  "warnings": ""
-}`
-  };
+{"asset_type":"ui sound","game_context":"game UI","interaction_type":"confirm"|"cancel"|"hover"|"scroll"|"error"|"success"|"notification"|"reward"|"transition","tonal_character":"bright"|"warm"|"neutral"|"digital"|"organic"|"dark"|"metallic"|"wooden","sound_source":"what makes this sound","mood":"positive"|"negative"|"neutral"|"triumphant","intensity":"very low intensity"|"low intensity"|"mid intensity"|"high intensity"|"very high intensity","tonal_match":"yes"|"partial"|"no","channel":"mono"|"stereo","technical_flags":"one-shot, stereo, short transient","warnings":""}`;
+}
 
-  try {
-    const res = await fetch('https://api.anthropic.com/v1/messages', {
-      method: 'POST',
-      headers: {
-        'Content-Type':         'application/json',
-        'x-api-key':            key,
-        'anthropic-version':    '2023-06-01',
-        'anthropic-dangerous-direct-browser-access': 'true'
-      },
-      body: JSON.stringify({
-        model:      'claude-sonnet-4-20250514',
-        max_tokens: 1000,
-        messages:   [{ role: 'user', content: prompts[currentTab] }]
-      })
-    });
+async function callClaude(prompt, apiKey) {
+  const res = await fetch('https://api.anthropic.com/v1/messages', {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+      'x-api-key': apiKey,
+      'anthropic-version': '2023-06-01',
+      'anthropic-dangerous-direct-browser-access': 'true',
+    },
+    body: JSON.stringify({
+      model: 'claude-sonnet-4-20250514',
+      max_tokens: 1000,
+      messages: [{ role: 'user', content: prompt }],
+    }),
+  });
+  if (!res.ok) {
+    const e = await res.json();
+    throw new Error(e.error?.message || `API ${res.status}`);
+  }
+  const data = await res.json();
+  const raw  = data.content?.[0]?.text || '';
+  return JSON.parse(raw.replace(/```json|```/g,'').trim());
+}
 
-    if (!res.ok) {
-      const err = await res.json();
-      throw new Error(err.error?.message || `API error ${res.status}`);
+// ── Run all ───────────────────────────────────────────────────────────────────
+async function runAll() {
+  const apiKey    = document.getElementById('apiKey').value.trim();
+  const world     = document.getElementById('worldChar').value.trim() || 'dark gothic fantasy';
+  if (!apiKey) { setStatus('Enter your Anthropic API key first', 'err'); return; }
+
+  const pending = fileQueue.filter(q => q.status === 'pending');
+  if (!pending.length) { setStatus('All files already tagged', ''); return; }
+
+  document.getElementById('runBtn').disabled = true;
+  const wrap = document.getElementById('progress-bar-wrap');
+  const bar  = document.getElementById('progress-bar');
+  const lbl  = document.getElementById('progress-label');
+  wrap.style.display = 'block';
+
+  let done = 0;
+  for (let i = 0; i < fileQueue.length; i++) {
+    const q = fileQueue[i];
+    if (q.status !== 'pending') continue;
+
+    q.status = 'working';
+    renderQueue();
+    lbl.textContent = `Tagging ${done+1} of ${pending.length} — ${q.file.name}`;
+
+    try {
+      const audio   = await analyseFile(q.file);
+      const prompt  = buildPrompt(audio, world, currentTab);
+      const tags    = await callClaude(prompt, apiKey);
+
+      // Merge
+      const row = {
+        filename:       q.file.name,
+        duration:       audio.duration,
+        world_character: world,
+        ...tags,
+      };
+      // Build caption
+      row.caption = buildCaption(row, world, currentTab);
+
+      q.status = 'done';
+      q.result = row;
+      tableRows.push(row);
+    } catch(e) {
+      q.status = 'error';
+      q.result = { filename: q.file.name, _error: String(e) };
+      tableRows.push(q.result);
     }
 
-    const data = await res.json();
-    const raw  = data.content?.[0]?.text || '';
-    const clean = raw.replace(/```json|```/g, '').trim();
-    taggedData = JSON.parse(clean);
-    renderResults(taggedData, a, world);
-    setStatus('Tagged successfully', 'done');
-  } catch(err) {
-    setStatus('Error: ' + err.message, 'error');
+    done++;
+    bar.style.width = Math.round((done / pending.length) * 100) + '%';
+    renderQueue();
   }
+
+  lbl.textContent = `Done — ${done} files tagged`;
+  setStatus(`${tableRows.filter(r=>!r._error).length} tagged, ${tableRows.filter(r=>r._error).length} errors`, '');
+  renderTable();
+  document.getElementById('runBtn').disabled = false;
 }
 
-// ── Render results ────────────────────────────────────────────────────────────
-function renderResults(d, auto, world) {
-  document.getElementById('results').style.display = 'block';
-  const grid = document.getElementById('fieldsGrid');
-  grid.innerHTML = '';
-
-  const fieldDefs = currentTab === 'music' ? [
-    ['filename',        auto.filename,         'auto'],
-    ['duration',        auto.duration + 's',   'auto'],
-    ['world_character', world,                 'world'],
-    ['asset_type',      d.asset_type,          'ai'],
-    ['game_context',    d.game_context,        'ai'],
-    ['instrumentation', d.instrumentation,     'ai'],
-    ['mood_primary',    d.mood_primary,        'ai'],
-    ['mood_secondary',  d.mood_secondary || '—','ai'],
-    ['intensity',       d.intensity,           'ai'],
-    ['key_confirmed',   d.key_confirmed,       'ai'],
-    ['bpm_confirmed',   d.bpm_confirmed || '—','ai'],
-    ['structure',       d.structure,           'ai'],
-    ['loop_ready',      d.loop_ready,          'ai'],
-    ['technical_flags', d.technical_flags,     'ai'],
-  ] : currentTab === 'sfx' ? [
-    ['filename',         auto.filename,              'auto'],
-    ['duration',         auto.duration + 's',        'auto'],
-    ['world_character',  world,                      'world'],
-    ['asset_type',       d.asset_type,               'ai'],
-    ['game_context',     d.game_context,             'ai'],
-    ['weapon_action',    d.weapon_action,            'ai'],
-    ['weapon_type',      d.weapon_type,              'ai'],
-    ['weapon_material',  d.weapon_material,          'ai'],
-    ['holder_type',      d.holder_type,              'ai'],
-    ['holder_weight',    d.holder_weight,            'ai'],
-    ['motion_character', d.motion_character,         'ai'],
-    ['impact_surface',   d.impact_surface,           'ai'],
-    ['impact_character', d.impact_character,         'ai'],
-    ['elemental',        d.elemental,                'ai'],
-    ['vocal',            d.vocal,                    'ai'],
-    ['aftermath',        d.aftermath,                'ai'],
-    ['space',            d.space,                    'ai'],
-    ['intensity',        d.intensity,                'ai'],
-    ['channel',          d.channel,                  'ai'],
-    ['variant_id',       d.variant_id || '—',       'ai'],
-    ['technical_flags',  d.technical_flags,          'ai'],
-  ] : [
-    ['filename',         auto.filename,         'auto'],
-    ['duration',         auto.duration + 's',   'auto'],
-    ['world_character',  world,                 'world'],
-    ['asset_type',       d.asset_type,          'ai'],
-    ['interaction_type', d.interaction_type,    'ai'],
-    ['tonal_character',  d.tonal_character,     'ai'],
-    ['sound_source',     d.sound_source,        'ai'],
-    ['mood',             d.mood,                'ai'],
-    ['intensity',        d.intensity,           'ai'],
-    ['tonal_match',      d.tonal_match,         'ai'],
-    ['channel',          d.channel,             'ai'],
-    ['technical_flags',  d.technical_flags,     'ai'],
-  ];
-
-  fieldDefs.forEach(([lbl, val, type]) => {
-    const div  = document.createElement('div');
-    div.className = 'field';
-    const empty = !val || val === '—' || val === '';
-    const displayVal = empty ? '—' : val;
-    div.innerHTML = `
-      <div class="field-label">${lbl}</div>
-      <div class="field-value ${empty ? 'empty' : type}">${displayVal}</div>
-      ${empty ? '' : `<button class="field-copy" title="Copy ${lbl}" onclick="copyField(this, '${String(val).replace(/'/g,"\'")}')">
-        <svg viewBox="0 0 24 24"><rect x="9" y="9" width="13" height="13" rx="2"/><path d="M5 15H4a2 2 0 01-2-2V4a2 2 0 012-2h9a2 2 0 012 2v1"/></svg>
-      </button>`}`;
-    grid.appendChild(div);
-  });
-
-  document.getElementById('captionText').textContent = buildCaption(d, auto, world);
-
-  const warnBox = document.getElementById('warnBox');
-  if (d.warnings) {
-    warnBox.style.display = 'block';
-    warnBox.textContent   = '⚠ ' + d.warnings;
-  } else {
-    warnBox.style.display = 'none';
-  }
-}
-
-function buildCaption(d, auto, world) {
+// ── Caption builders ──────────────────────────────────────────────────────────
+function buildCaption(d, world, tab) {
   const p = [world];
-  if (currentTab === 'music') {
-    if (d.asset_type)    p.push(d.asset_type);
+  if (tab === 'sfx') {
+    ['asset_type','weapon_action','weapon_type'].forEach(f => { if(d[f]) p.push(d[f]); });
+    if (d.weapon_material) p.push(d.weapon_material+' weapon');
+    ['holder_type','holder_weight','motion_character'].forEach(f => { if(d[f]) p.push(d[f]); });
+    if (d.impact_surface && d.impact_surface !== 'air') p.push('hits '+d.impact_surface);
+    if (d.impact_character) p.push(d.impact_character);
+    if (d.elemental && d.elemental !== 'none') p.push(d.elemental+' elemental');
+    if (d.vocal && d.vocal !== 'none') p.push(d.vocal);
+    if (d.aftermath && d.aftermath !== 'none') p.push('aftermath: '+d.aftermath);
+    ['space','intensity','channel','game_context','technical_flags'].forEach(f => { if(d[f]) p.push(d[f]); });
+  } else if (tab === 'music') {
+    if (d.asset_type) p.push(d.asset_type);
     if (d.instrumentation) p.push(d.instrumentation);
     const m = d.mood_secondary ? `${d.mood_primary} and ${d.mood_secondary}` : d.mood_primary;
-    if (m)               p.push(m);
-    if (d.intensity)     p.push(d.intensity);
+    if (m) p.push(m);
+    if (d.intensity) p.push(d.intensity);
     if (d.key_confirmed && d.key_confirmed !== '—') p.push(d.key_confirmed);
-    if (d.bpm_confirmed && d.bpm_confirmed !== 0 && d.bpm_confirmed !== '—') p.push(d.bpm_confirmed + ' BPM');
-    if (d.structure)     p.push(d.structure);
-    if (d.game_context)  p.push(d.game_context);
-    if (d.loop_ready)    p.push('loop: ' + d.loop_ready);
+    if (d.bpm_confirmed && d.bpm_confirmed !== 0) p.push(d.bpm_confirmed+' BPM');
+    if (d.structure) p.push(d.structure);
+    if (d.game_context) p.push(d.game_context);
+    if (d.loop_ready) p.push('loop: '+d.loop_ready);
     if (d.technical_flags) p.push(d.technical_flags);
-  } else if (currentTab === 'sfx') {
-    if (d.asset_type)       p.push(d.asset_type);
-    if (d.weapon_action)    p.push(d.weapon_action);
-    if (d.weapon_type)      p.push(d.weapon_type);
-    if (d.weapon_material)  p.push(d.weapon_material + ' weapon');
-    if (d.holder_type)      p.push(d.holder_type);
-    if (d.holder_weight)    p.push(d.holder_weight);
-    if (d.motion_character) p.push(d.motion_character);
-    if (d.impact_surface && d.impact_surface !== 'air') p.push('hits ' + d.impact_surface);
-    if (d.impact_character) p.push(d.impact_character);
-    if (d.elemental && d.elemental !== 'none') p.push(d.elemental + ' elemental');
-    if (d.vocal && d.vocal !== 'none')         p.push(d.vocal);
-    if (d.aftermath && d.aftermath !== 'none') p.push('aftermath: ' + d.aftermath);
-    if (d.space)            p.push(d.space);
-    if (d.intensity)        p.push(d.intensity);
-    if (d.channel)          p.push(d.channel);
-    if (d.game_context)     p.push(d.game_context);
-    if (d.technical_flags)  p.push(d.technical_flags);
   } else {
-    if (d.asset_type)        p.push(d.asset_type);
-    if (d.sound_source)      p.push(d.sound_source + ' source');
-    if (d.interaction_type)  p.push(d.interaction_type + ' interaction');
-    if (d.tonal_character)   p.push(d.tonal_character + ' tonal character');
-    if (d.mood)              p.push(d.mood + ' mood');
-    if (d.intensity)         p.push(d.intensity);
-    if (d.tonal_match)       p.push('tonal match: ' + d.tonal_match);
-    if (d.channel)           p.push(d.channel);
-    if (d.game_context)      p.push(d.game_context);
-    if (d.technical_flags)   p.push(d.technical_flags);
+    ['asset_type'].forEach(f=>{if(d[f])p.push(d[f]);});
+    if (d.sound_source) p.push(d.sound_source+' source');
+    if (d.interaction_type) p.push(d.interaction_type+' interaction');
+    if (d.tonal_character) p.push(d.tonal_character+' tonal character');
+    if (d.mood) p.push(d.mood+' mood');
+    ['intensity','tonal_match','channel','game_context','technical_flags'].forEach(f=>{if(d[f])p.push(d[f]);});
   }
   return p.join(', ');
 }
 
-// ── Copy single field ────────────────────────────────────────────────────────
-function copyField(btn, val) {
-  navigator.clipboard.writeText(val).then(() => {
-    btn.classList.add('copied');
-    setTimeout(() => btn.classList.remove('copied'), 1800);
-  });
+// ── Review table ──────────────────────────────────────────────────────────────
+function getColumns(tab) {
+  if (tab === 'sfx') return [
+    'filename','duration','world_character','asset_type','game_context',
+    'weapon_action','weapon_type','weapon_material','holder_type','holder_weight',
+    'motion_character','impact_surface','impact_character',
+    'elemental','vocal','aftermath',
+    'space','intensity','channel','variant_id','technical_flags','caption'
+  ];
+  if (tab === 'music') return [
+    'filename','duration','world_character','asset_type','game_context',
+    'instrumentation','mood_primary','mood_secondary','intensity',
+    'key_confirmed','bpm_confirmed','structure','loop_ready','technical_flags','caption'
+  ];
+  return [
+    'filename','duration','world_character','asset_type','game_context',
+    'interaction_type','tonal_character','sound_source','mood',
+    'intensity','tonal_match','channel','technical_flags','caption'
+  ];
 }
 
-// ── Copy row ──────────────────────────────────────────────────────────────────
-function copyRow() {
-  if (!taggedData || !autoData) return;
-  const world   = document.getElementById('worldChar').value.trim() || 'dark gothic fantasy';
-  const d       = taggedData;
-  const caption = buildCaption(d, autoData, world);
+function renderTable() {
+  const section = document.getElementById('review-section');
+  const head    = document.getElementById('tableHead');
+  const body    = document.getElementById('tableBody');
+  const cols    = getColumns(currentTab);
 
-  let row;
-  if (currentTab === 'music') {
-    row = [
-      d.filename || autoData.filename,
-      autoData.duration,
-      autoData.key,
-      autoData.bpm,
-      world,
-      d.asset_type,
-      d.game_context,
-      d.instrumentation,
-      d.mood_primary,
-      d.mood_secondary || '',
-      d.intensity,
-      d.key_confirmed,
-      d.bpm_confirmed || '',
-      d.structure,
-      d.loop_ready,
-      d.technical_flags,
-      caption
-    ];
-  } else if (currentTab === 'sfx') {
-    row = [
-      autoData.filename,
-      autoData.duration,
-      world,
-      d.asset_type,
-      d.game_context,
-      d.weapon_action,
-      d.weapon_type,
-      d.weapon_material,
-      d.holder_type,
-      d.holder_weight,
-      d.motion_character,
-      d.impact_surface,
-      d.impact_character,
-      d.elemental,
-      d.vocal,
-      d.aftermath,
-      d.space,
-      d.channel,
-      d.variant_id || '',
-      d.technical_flags,
-      caption
-    ];
-  } else {
-    row = [
-      autoData.filename,
-      autoData.duration,
-      world,
-      d.asset_type,
-      d.interaction_type,
-      d.tonal_character,
-      d.sound_source,
-      d.mood,
-      d.intensity,
-      d.tonal_match,
-      d.channel,
-      d.technical_flags,
-      caption
-    ];
+  section.style.display = 'block';
+
+  // Header
+  head.innerHTML = `<tr>
+    <th><input type="checkbox" onchange="selectAll(this.checked)" id="masterCb"></th>
+    ${cols.map(c => `<th>${c.replace(/_/g,' ')}</th>`).join('')}
+  </tr>`;
+
+  // Body
+  body.innerHTML = tableRows.map((row, ri) => {
+    if (row._error) {
+      return `<tr class="has-error">
+        <td class="check-cell"><input type="checkbox" data-idx="${ri}"></td>
+        <td class="filename-cell">${row.filename}</td>
+        <td colspan="${cols.length-1}" class="tag-error">Error: ${row._error}</td>
+      </tr>`;
+    }
+    const cells = cols.map(col => {
+      const val = row[col] ?? '';
+      const cls = col === 'filename' ? 'filename-cell' :
+                  col === 'world_character' ? 'tag-world' :
+                  col === 'caption' ? 'tag-ai' :
+                  ['duration'].includes(col) ? 'tag-auto' : 'tag-ai';
+      return `<td class="${cls} editable" contenteditable="true"
+                  onblur="updateCell(${ri},'${col}',this)"
+                  style="${col==='caption'?'min-width:260px;white-space:normal;':'white-space:nowrap;'}"
+                  >${val}</td>`;
+    });
+    return `<tr id="tr-${ri}">
+      <td class="check-cell"><input type="checkbox" data-idx="${ri}" onchange="updatePushBar()"></td>
+      ${cells.join('')}
+    </tr>`;
+  }).join('');
+
+  updatePushBar();
+}
+
+function updateCell(idx, col, el) {
+  tableRows[idx][col] = el.textContent.trim();
+}
+
+function selectAll(checked) {
+  document.querySelectorAll('#tableBody input[type=checkbox]').forEach(cb => {
+    cb.checked = checked;
+    const tr = cb.closest('tr');
+    if (tr) tr.classList.toggle('selected', checked);
+  });
+  const master = document.getElementById('masterCb');
+  if (master) master.checked = checked;
+  updatePushBar();
+}
+
+function updatePushBar() {
+  const checked = document.querySelectorAll('#tableBody input[type=checkbox]:checked').length;
+  const bar = document.getElementById('pushBar');
+  bar.style.display = checked > 0 ? 'flex' : 'none';
+  document.getElementById('selectedCount').textContent = checked;
+}
+
+function removeSelected() {
+  const toRemove = new Set();
+  document.querySelectorAll('#tableBody input[type=checkbox]:checked').forEach(cb => {
+    toRemove.add(parseInt(cb.dataset.idx));
+  });
+  tableRows = tableRows.filter((_, i) => !toRemove.has(i));
+  fileQueue = fileQueue.filter(q => !toRemove.has(tableRows.indexOf(q.result)));
+  renderTable();
+  renderQueue();
+}
+
+// ── Download CSV ──────────────────────────────────────────────────────────────
+function getSelectedRows() {
+  const selected = [];
+  document.querySelectorAll('#tableBody input[type=checkbox]:checked').forEach(cb => {
+    selected.push(tableRows[parseInt(cb.dataset.idx)]);
+  });
+  return selected.filter(r => r && !r._error);
+}
+
+function downloadCSV() {
+  const rows = getSelectedRows();
+  if (!rows.length) return;
+  const cols = getColumns(currentTab);
+  const lines = [cols.join('\t')];
+  rows.forEach(r => lines.push(cols.map(c => String(r[c]??'').replace(/\t/g,' ')).join('\t')));
+  const blob = new Blob([lines.join('\n')], { type: 'text/tab-separated-values' });
+  const a = document.createElement('a');
+  a.href = URL.createObjectURL(blob);
+  a.download = `tags_${currentTab}_${Date.now()}.tsv`;
+  a.click();
+}
+
+// ── Push to Google Sheet ──────────────────────────────────────────────────────
+async function pushToSheet() {
+  const sheetId = document.getElementById('sheetId').value.trim();
+  if (!sheetId) {
+    setStatus('Enter your Google Sheet ID in the config above', 'err');
+    return;
   }
 
-  navigator.clipboard.writeText(row.join('\t')).then(() => {
-    const btn = document.getElementById('copyBtn');
-    btn.textContent = 'Copied — go to your sheet and paste';
+  const rows = getSelectedRows();
+  if (!rows.length) { setStatus('No rows selected', 'err'); return; }
+
+  const btn = document.getElementById('pushBtn');
+  btn.disabled = true;
+  btn.textContent = 'Authenticating…';
+  setStatus('Opening Google sign-in…');
+
+  try {
+    const token = await getGoogleToken();
+    btn.textContent = 'Pushing…';
+
+    const cols   = getColumns(currentTab);
+    const tabMap = { sfx: 'SFX', music: 'Music', ui: 'UI Sounds' };
+    const tab    = tabMap[currentTab];
+    const values = rows.map(r => cols.map(c => String(r[c] ?? '')));
+
+    const res = await fetch(
+      `https://sheets.googleapis.com/v4/spreadsheets/${sheetId}/values/${encodeURIComponent(tab)}:append?valueInputOption=USER_ENTERED&insertDataOption=INSERT_ROWS`,
+      {
+        method: 'POST',
+        headers: { 'Authorization': `Bearer ${token}`, 'Content-Type': 'application/json' },
+        body: JSON.stringify({ values }),
+      }
+    );
+
+    if (!res.ok) {
+      const e = await res.json();
+      throw new Error(e.error?.message || `Sheets API ${res.status}`);
+    }
+
+    const data = await res.json();
+    const written = data.updates?.updatedRows ?? rows.length;
+    setStatus(`✓ ${written} rows pushed to "${tab}" tab`, 'ok');
+    btn.textContent = `✓ ${written} rows pushed`;
     btn.classList.add('success');
-    setTimeout(() => {
-      btn.textContent = 'Copy row — paste directly into sheet';
-      btn.classList.remove('success');
-    }, 3000);
+
+    // Uncheck pushed rows
+    document.querySelectorAll('#tableBody input[type=checkbox]:checked').forEach(cb => {
+      cb.checked = false;
+      cb.closest('tr')?.classList.remove('selected');
+    });
+    updatePushBar();
+
+  } catch(e) {
+    setStatus('Push failed: ' + e.message, 'err');
+    btn.textContent = 'Push to Google Sheet';
+  }
+  btn.disabled = false;
+}
+
+// ── Google OAuth (implicit flow — no backend needed) ──────────────────────────
+const GOOGLE_CLIENT_ID = ''; // set below after loading
+
+let googleTokenCache = null;
+let tokenExpiry      = 0;
+
+async function getGoogleToken() {
+  if (googleTokenCache && Date.now() < tokenExpiry) return googleTokenCache;
+
+  return new Promise((resolve, reject) => {
+    // Load the Google Identity Services library
+    if (!document.getElementById('gsi-script')) {
+      const s = document.createElement('script');
+      s.id  = 'gsi-script';
+      s.src = 'https://accounts.google.com/gsi/client';
+      s.onload = () => requestToken(resolve, reject);
+      document.head.appendChild(s);
+    } else {
+      requestToken(resolve, reject);
+    }
   });
 }
+
+function requestToken(resolve, reject) {
+  // We use tokenClient (implicit) — user sees a popup, grants access, token returned
+  // CLIENT_ID must be configured in Google Cloud Console with this page's origin
+  const clientId = document.getElementById('googleClientId')?.value?.trim() || '';
+  if (!clientId) {
+    reject(new Error(
+      'Google Client ID not set.\n\n' +
+      'To set up Google Sheets writing:\n' +
+      '1. Go to console.cloud.google.com\n' +
+      '2. Create OAuth 2.0 Client ID (Web application)\n' +
+      '3. Add your site URL to Authorized JavaScript origins\n' +
+      '4. Paste the Client ID into the field that appeared below'
+    ));
+    return;
+  }
+
+  const client = google.accounts.oauth2.initTokenClient({
+    client_id: clientId,
+    scope: 'https://www.googleapis.com/auth/spreadsheets',
+    callback: (resp) => {
+      if (resp.error) { reject(new Error(resp.error)); return; }
+      googleTokenCache = resp.access_token;
+      tokenExpiry = Date.now() + (resp.expires_in * 1000) - 60000;
+      resolve(resp.access_token);
+    },
+  });
+  client.requestAccessToken();
+}
+</script>
+
+<!-- Google Client ID field — shown only when needed -->
+<div id="googleClientIdCard" class="card" style="display:none;margin-top:10px">
+  <label>Google OAuth Client ID <span style="color:var(--muted);font-size:10px">(needed for sheet writing — see SETUP.md)</span></label>
+  <input type="text" id="googleClientId" placeholder="123456789-abc.apps.googleusercontent.com">
+</div>
+
+<script>
+// Show Google Client ID field when pushBtn is first clicked
+document.getElementById('pushBtn').addEventListener('click', () => {
+  document.getElementById('googleClientIdCard').style.display = 'block';
+}, { once: true });
 </script>
 </body>
 </html>
