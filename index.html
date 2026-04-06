@@ -1,0 +1,861 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Game Audio Tagger</title>
+<style>
+  *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+  :root {
+    --bg:       #0f0f17;
+    --surface:  #1a1a2e;
+    --surface2: #232338;
+    --border:   #2e2e4a;
+    --text:     #e8e8f0;
+    --muted:    #8888aa;
+    --blue:     #4a9eff;
+    --green:    #3ecf8e;
+    --purple:   #a78bfa;
+    --amber:    #fbbf24;
+    --red:      #f87171;
+    --radius:   10px;
+  }
+
+  body {
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+    background: var(--bg);
+    color: var(--text);
+    min-height: 100vh;
+    padding: 24px 16px;
+  }
+
+  .app { max-width: 760px; margin: 0 auto; }
+
+  h1 {
+    font-size: 22px;
+    font-weight: 600;
+    color: var(--text);
+    margin-bottom: 4px;
+  }
+  .subtitle {
+    font-size: 13px;
+    color: var(--muted);
+    margin-bottom: 28px;
+  }
+
+  .card {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: var(--radius);
+    padding: 18px 20px;
+    margin-bottom: 14px;
+  }
+
+  .card-title {
+    font-size: 12px;
+    font-weight: 600;
+    color: var(--muted);
+    text-transform: uppercase;
+    letter-spacing: 0.06em;
+    margin-bottom: 12px;
+  }
+
+  label {
+    display: block;
+    font-size: 12px;
+    color: var(--muted);
+    margin-bottom: 5px;
+  }
+
+  input[type="text"], input[type="password"] {
+    width: 100%;
+    padding: 9px 12px;
+    background: var(--surface2);
+    border: 1px solid var(--border);
+    border-radius: 7px;
+    color: var(--text);
+    font-size: 13px;
+    outline: none;
+    transition: border-color 0.15s;
+  }
+  input:focus { border-color: var(--blue); }
+
+  .key-row {
+    display: flex;
+    gap: 8px;
+    align-items: flex-end;
+  }
+  .key-row input { flex: 1; }
+  .key-row button {
+    padding: 9px 14px;
+    font-size: 12px;
+    white-space: nowrap;
+  }
+
+  .tab-row {
+    display: flex;
+    gap: 6px;
+    margin-bottom: 16px;
+  }
+  .tab {
+    padding: 7px 16px;
+    border-radius: 20px;
+    font-size: 12px;
+    font-weight: 500;
+    cursor: pointer;
+    border: 1px solid var(--border);
+    background: transparent;
+    color: var(--muted);
+    transition: all 0.15s;
+  }
+  .tab:hover { border-color: var(--blue); color: var(--blue); }
+  .tab.active {
+    background: rgba(74,158,255,0.15);
+    border-color: var(--blue);
+    color: var(--blue);
+  }
+
+  .drop {
+    border: 1.5px dashed var(--border);
+    border-radius: var(--radius);
+    padding: 32px 20px;
+    text-align: center;
+    cursor: pointer;
+    transition: all 0.15s;
+  }
+  .drop:hover, .drop.over {
+    border-color: var(--green);
+    background: rgba(62,207,142,0.05);
+  }
+  .drop-icon {
+    width: 36px;
+    height: 36px;
+    margin: 0 auto 10px;
+    border-radius: 50%;
+    background: rgba(62,207,142,0.12);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+  }
+  .drop-icon svg { width: 18px; height: 18px; stroke: var(--green); fill: none; stroke-width: 2; }
+  .drop-title { font-size: 14px; font-weight: 500; color: var(--text); margin-bottom: 4px; }
+  .drop-sub { font-size: 12px; color: var(--muted); }
+  .drop input { display: none; }
+
+  .waveform {
+    height: 52px;
+    background: var(--surface2);
+    border-radius: 7px;
+    overflow: hidden;
+    margin-top: 12px;
+    display: none;
+  }
+  canvas { display: block; width: 100%; height: 52px; }
+
+  .status {
+    font-size: 12px;
+    color: var(--muted);
+    margin-top: 10px;
+    min-height: 18px;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+  }
+  .status.loading { color: var(--blue); }
+  .status.error   { color: var(--red); }
+  .status.done    { color: var(--green); }
+
+  .spinner {
+    width: 14px; height: 14px;
+    border: 2px solid rgba(74,158,255,0.3);
+    border-top-color: var(--blue);
+    border-radius: 50%;
+    animation: spin 0.7s linear infinite;
+    flex-shrink: 0;
+  }
+  @keyframes spin { to { transform: rotate(360deg); } }
+
+  .results { display: none; }
+
+  .file-badge {
+    display: inline-block;
+    font-size: 11px;
+    background: var(--surface2);
+    border: 1px solid var(--border);
+    border-radius: 5px;
+    padding: 2px 9px;
+    color: var(--muted);
+    margin-bottom: 14px;
+    max-width: 100%;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+
+  .legend {
+    display: flex;
+    gap: 14px;
+    font-size: 11px;
+    color: var(--muted);
+    margin-bottom: 12px;
+  }
+  .dot { width: 7px; height: 7px; border-radius: 50%; display: inline-block; margin-right: 4px; }
+
+  .fields-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(168px, 1fr));
+    gap: 8px;
+    margin-bottom: 14px;
+  }
+  .field {
+    background: var(--surface2);
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    padding: 10px 12px;
+  }
+  .field-label {
+    font-size: 10px;
+    color: var(--muted);
+    margin-bottom: 4px;
+    font-weight: 500;
+  }
+  .field-value {
+    font-size: 12px;
+    font-weight: 500;
+    word-break: break-word;
+    line-height: 1.4;
+  }
+  .field-value.auto   { color: var(--blue); }
+  .field-value.ai     { color: var(--green); }
+  .field-value.world  { color: var(--purple); }
+  .field-value.empty  { color: var(--muted); font-style: italic; }
+
+  .caption-section { margin-bottom: 14px; }
+  .caption-label {
+    font-size: 11px;
+    color: var(--muted);
+    font-weight: 500;
+    margin-bottom: 6px;
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+  }
+  .caption-text {
+    background: var(--surface2);
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    padding: 12px 14px;
+    font-size: 12px;
+    color: var(--green);
+    font-weight: 500;
+    line-height: 1.65;
+    word-break: break-word;
+    font-family: "SF Mono", "Fira Code", monospace;
+  }
+
+  .action-row { display: flex; gap: 8px; }
+
+  button {
+    padding: 9px 18px;
+    border-radius: 7px;
+    font-size: 13px;
+    font-weight: 500;
+    cursor: pointer;
+    border: 1px solid var(--border);
+    background: var(--surface2);
+    color: var(--text);
+    transition: all 0.15s;
+  }
+  button:hover { border-color: var(--blue); color: var(--blue); }
+  button.primary {
+    background: rgba(74,158,255,0.15);
+    border-color: var(--blue);
+    color: var(--blue);
+    flex: 1;
+  }
+  button.primary:hover { background: rgba(74,158,255,0.25); }
+  button.success {
+    background: rgba(62,207,142,0.15) !important;
+    border-color: var(--green) !important;
+    color: var(--green) !important;
+  }
+
+  .warn {
+    background: rgba(251,191,36,0.08);
+    border: 1px solid rgba(251,191,36,0.25);
+    border-radius: 7px;
+    padding: 9px 12px;
+    font-size: 11px;
+    color: var(--amber);
+    margin-bottom: 12px;
+  }
+
+  .divider {
+    border: none;
+    border-top: 1px solid var(--border);
+    margin: 14px 0;
+  }
+
+  a { color: var(--blue); text-decoration: none; }
+  a:hover { text-decoration: underline; }
+
+  footer {
+    text-align: center;
+    font-size: 11px;
+    color: var(--muted);
+    margin-top: 32px;
+    padding-top: 16px;
+    border-top: 1px solid var(--border);
+  }
+</style>
+</head>
+<body>
+<div class="app">
+
+  <h1>Game Audio Tagger</h1>
+  <p class="subtitle">Upload an audio file — get every column filled using your controlled vocabulary, ready to paste into your tagging sheet.</p>
+
+  <!-- API Key -->
+  <div class="card">
+    <div class="card-title">Anthropic API key</div>
+    <div class="key-row">
+      <div style="flex:1">
+        <label>Your key — stays in memory only, never stored or sent anywhere except Anthropic</label>
+        <input type="password" id="apiKey" placeholder="sk-ant-...">
+      </div>
+      <button onclick="toggleKeyVisibility()" id="toggleBtn">Show</button>
+    </div>
+    <div style="margin-top:8px;font-size:11px;color:var(--muted)">
+      Get a key at <a href="https://console.anthropic.com" target="_blank">console.anthropic.com</a>
+    </div>
+  </div>
+
+  <!-- World character -->
+  <div class="card">
+    <div class="card-title">World character</div>
+    <label>Your game world identity — same for every file in this project</label>
+    <input type="text" id="worldChar" placeholder="e.g. dark gothic fantasy" value="dark gothic fantasy">
+    <div style="margin-top:6px;font-size:11px;color:var(--muted)">This appears at the start of every caption. Set it once and leave it.</div>
+  </div>
+
+  <!-- Tab selector -->
+  <div class="tab-row">
+    <button class="tab active" onclick="setTab('music',this)">Music</button>
+    <button class="tab" onclick="setTab('sfx',this)">SFX</button>
+    <button class="tab" onclick="setTab('ui',this)">UI Sound</button>
+  </div>
+
+  <!-- Drop zone -->
+  <div class="card">
+    <div class="drop" id="dropzone"
+         onclick="document.getElementById('fileIn').click()"
+         ondragover="ev(event);this.classList.add('over')"
+         ondragleave="this.classList.remove('over')"
+         ondrop="handleDrop(event)">
+      <input type="file" id="fileIn" accept="audio/*,.ogg,.wav,.mp3,.flac,.aiff" onchange="handleFile(this.files[0])">
+      <div class="drop-icon">
+        <svg viewBox="0 0 24 24"><path d="M9 19V6l12-3v13"/><circle cx="6" cy="18" r="3"/><circle cx="18" cy="15" r="3"/></svg>
+      </div>
+      <div class="drop-title">Drop audio file here</div>
+      <div class="drop-sub">WAV · OGG · MP3 · FLAC · AIFF — or click to browse</div>
+    </div>
+    <div class="waveform" id="waveformWrap"><canvas id="wv"></canvas></div>
+    <div class="status" id="status"></div>
+  </div>
+
+  <!-- Results -->
+  <div class="results" id="results">
+    <div class="card">
+      <div class="file-badge" id="fileBadge"></div>
+      <div class="legend">
+        <span><span class="dot" style="background:var(--purple)"></span>world</span>
+        <span><span class="dot" style="background:var(--blue)"></span>auto-detected</span>
+        <span><span class="dot" style="background:var(--green)"></span>AI-tagged</span>
+      </div>
+      <div class="fields-grid" id="fieldsGrid"></div>
+      <hr class="divider">
+      <div class="caption-section">
+        <div class="caption-label">Assembled caption</div>
+        <div class="caption-text" id="captionText"></div>
+      </div>
+      <div class="warn" id="warnBox" style="display:none"></div>
+      <div class="action-row">
+        <button class="primary" id="copyBtn" onclick="copyRow()">Copy row — paste directly into sheet</button>
+        <button onclick="document.getElementById('fileIn').click()">New file</button>
+      </div>
+    </div>
+  </div>
+
+  <footer>
+    Game Audio Tagger &nbsp;·&nbsp;
+    <a href="https://github.com/jony-brrrt/tag-tool" target="_blank">github.com/jony-brrrt/tag-tool</a>
+  </footer>
+
+</div>
+
+<script>
+// ── State ────────────────────────────────────────────────────────────────────
+let currentTab = 'music';
+let autoData   = null;
+let taggedData = null;
+
+// ── Helpers ───────────────────────────────────────────────────────────────────
+function ev(e) { e.preventDefault(); }
+
+function setStatus(msg, type = '') {
+  const s = document.getElementById('status');
+  s.className = 'status' + (type ? ' ' + type : '');
+  if (type === 'loading') {
+    s.innerHTML = `<div class="spinner"></div><span>${msg}</span>`;
+  } else {
+    s.textContent = msg;
+  }
+}
+
+function toggleKeyVisibility() {
+  const inp = document.getElementById('apiKey');
+  const btn = document.getElementById('toggleBtn');
+  if (inp.type === 'password') { inp.type = 'text';  btn.textContent = 'Hide'; }
+  else                         { inp.type = 'password'; btn.textContent = 'Show'; }
+}
+
+function setTab(tab, btn) {
+  currentTab = tab;
+  document.querySelectorAll('.tab').forEach(t => t.classList.remove('active'));
+  btn.classList.add('active');
+  if (autoData) runTagging(autoData);
+}
+
+// ── File handling ─────────────────────────────────────────────────────────────
+function handleDrop(e) {
+  e.preventDefault();
+  document.getElementById('dropzone').classList.remove('over');
+  const f = e.dataTransfer.files[0];
+  if (f) handleFile(f);
+}
+
+async function handleFile(file) {
+  if (!file) return;
+  const key = document.getElementById('apiKey').value.trim();
+  if (!key) { setStatus('Enter your Anthropic API key first.', 'error'); return; }
+
+  document.getElementById('results').style.display = 'none';
+  document.getElementById('fileBadge').textContent = file.name;
+  setStatus('Analysing audio…', 'loading');
+
+  try {
+    const buf = await file.arrayBuffer();
+    const Ctx = window.AudioContext || window.webkitAudioContext;
+    const ctx = new Ctx();
+    const decoded = await ctx.decodeAudioData(buf.slice(0));
+
+    const ch0 = decoded.getChannelData(0);
+    drawWaveform(ch0);
+
+    const duration = Math.round(decoded.duration);
+    const bpm      = Math.round(await estimateBPM(ch0, decoded.sampleRate));
+    const key      = estimateKey(ch0, decoded.sampleRate);
+    const rms      = Math.round(calcRMS(ch0) * 1000) / 1000;
+    const chLabel  = decoded.numberOfChannels > 1 ? 'stereo' : 'mono';
+
+    autoData = { filename: file.name, duration, bpm, key, rms, channelLabel: chLabel };
+    ctx.close();
+
+    setStatus('Asking Claude to tag…', 'loading');
+    await runTagging(autoData);
+  } catch(err) {
+    setStatus('Error: ' + err.message, 'error');
+  }
+}
+
+// ── Audio analysis ────────────────────────────────────────────────────────────
+function calcRMS(data) {
+  let s = 0, n = 0;
+  const step = Math.max(1, Math.floor(data.length / 8000));
+  for (let i = 0; i < data.length; i += step) { s += data[i]**2; n++; }
+  return Math.sqrt(s / n);
+}
+
+async function estimateBPM(data, sr) {
+  // Downsample to 4000 Hz for speed
+  const targetSr  = 4000;
+  const ratio     = Math.floor(sr / targetSr);
+  const maxFrames = Math.floor(Math.min(sr * 30, data.length) / ratio);
+  const downsampled = new Float32Array(maxFrames);
+  for (let i = 0; i < maxFrames; i++) downsampled[i] = data[i * ratio];
+
+  // Onset envelope via half-wave rectified first-order RMS difference
+  const hopSize = Math.floor(targetSr * 0.01);
+  const numHops = Math.floor(downsampled.length / hopSize);
+  const envelope = new Float32Array(numHops);
+  let prevRMS = 0;
+  for (let h = 0; h < numHops; h++) {
+    let e = 0;
+    for (let i = 0; i < hopSize; i++) e += downsampled[h * hopSize + i] ** 2;
+    const rms = Math.sqrt(e / hopSize);
+    envelope[h] = Math.max(0, rms - prevRMS);
+    prevRMS = rms;
+  }
+
+  // Normalize
+  const maxE = Math.max(...envelope) || 1;
+  for (let i = 0; i < envelope.length; i++) envelope[i] /= maxE;
+
+  // Autocorrelation over BPM range 50-200
+  const hopSecs = 0.01;
+  const minLag  = Math.round(60 / 200 / hopSecs);
+  const maxLag  = Math.round(60 /  50 / hopSecs);
+  let bestLag   = minLag;
+  let bestCorr  = -Infinity;
+  const commonBPMs = [60,70,80,90,100,110,120,130,140,150,160,170,180];
+
+  for (let lag = minLag; lag <= maxLag; lag++) {
+    let corr = 0;
+    const n = envelope.length - lag;
+    if (n <= 0) continue;
+    for (let i = 0; i < n; i++) corr += envelope[i] * envelope[i + lag];
+    corr /= n;
+    const bpmAtLag = 60 / (lag * hopSecs);
+    const nearest  = commonBPMs.reduce((a,b) => Math.abs(b-bpmAtLag)<Math.abs(a-bpmAtLag)?b:a);
+    corr *= 1 + 0.15 * Math.exp(-((bpmAtLag - nearest)**2) / 50);
+    if (corr > bestCorr) { bestCorr = corr; bestLag = lag; }
+  }
+
+  if (bestCorr < 0.002) return 0;
+  let result = Math.round(60 / (bestLag * hopSecs));
+  while (result > 160) result = Math.round(result / 2);
+  while (result < 60)  result = Math.round(result * 2);
+  if (result < 40 || result > 220) return 0;
+  return result;
+}
+
+function estimateKey(data, sr) {
+  const notes  = ['C','C#','D','D#','E','F','F#','G','G#','A','A#','B'];
+  const chroma = new Array(12).fill(0);
+  const step   = Math.max(1, Math.floor(sr / 200));
+  const sample = data.slice(0, Math.min(sr * 8, data.length));
+  for (let i = 0; i < sample.length - step; i += step) {
+    for (let n = 0; n < 12; n++) {
+      const freq  = 261.63 * Math.pow(2, n / 12);
+      const phase = (i * freq / sr) % 1;
+      chroma[n]  += Math.abs(sample[i]) * Math.cos(2 * Math.PI * phase);
+    }
+  }
+  return notes[chroma.indexOf(Math.max(...chroma))];
+}
+
+function drawWaveform(data) {
+  const wrap   = document.getElementById('waveformWrap');
+  wrap.style.display = 'block';
+  const canvas = document.getElementById('wv');
+  const ctx    = canvas.getContext('2d');
+  canvas.width  = canvas.offsetWidth  * devicePixelRatio;
+  canvas.height = 52 * devicePixelRatio;
+  ctx.scale(devicePixelRatio, devicePixelRatio);
+  const W = canvas.offsetWidth, H = 52;
+  ctx.clearRect(0, 0, W, H);
+  const step = Math.ceil(data.length / W);
+  ctx.strokeStyle = '#3ecf8e';
+  ctx.lineWidth   = 1;
+  for (let x = 0; x < W; x++) {
+    let mn = 1, mx = -1;
+    for (let i = 0; i < step; i++) {
+      const d = data[x * step + i] || 0;
+      if (d < mn) mn = d;
+      if (d > mx) mx = d;
+    }
+    ctx.beginPath();
+    ctx.moveTo(x, (1 + mn) * H / 2);
+    ctx.lineTo(x, (1 + mx) * H / 2);
+    ctx.stroke();
+  }
+}
+
+// ── Claude API ────────────────────────────────────────────────────────────────
+async function runTagging(a) {
+  const key   = document.getElementById('apiKey').value.trim();
+  const world = document.getElementById('worldChar').value.trim() || 'dark gothic fantasy';
+
+  const prompts = {
+    music: `You are an expert game audio tagger. Analyse this audio and return ONLY valid JSON — no markdown fences, no explanation, nothing else.
+
+Audio: filename="${a.filename}", duration=${a.duration}s, est BPM=${a.bpm||'unclear'}, est key tonic=${a.key}, RMS=${a.rms}, channels=${a.channelLabel}
+World character (fixed): "${world}"
+
+Return exactly this JSON structure with values ONLY from the allowed lists:
+{
+  "asset_type": "music" | "stinger" | "ambience",
+  "game_context": "game combat" | "game exploration" | "game boss fight" | "game menu" | "game cutscene" | "game ambient",
+  "instrumentation": "comma-separated instruments inferred from filename and context",
+  "mood_primary": "aggressive" | "tense" | "melancholic" | "eerie" | "triumphant" | "hopeful" | "desperate" | "calm" | "mysterious" | "dread",
+  "mood_secondary": same options or "",
+  "intensity": "very low intensity" | "low intensity" | "mid intensity" | "high intensity" | "very high intensity",
+  "key_confirmed": "full key with mode e.g. D minor, G phrygian, A major — use — if unclear",
+  "bpm_confirmed": integer or 0 if ambient/unclear,
+  "structure": "loop, no arc" | "builds to climax" | "intro then loop" | "verse build drop" | "slow build" | "climax then resolve" | "short sting no arc",
+  "loop_ready": "yes" | "no",
+  "technical_flags": "comma-separated subset of: loop-ready, no intro, no outro, stereo, mono, fade out, stems available",
+  "warnings": "any confidence concerns e.g. BPM unclear, or empty string"
+}`,
+
+    sfx: `You are an expert game audio tagger. Return ONLY valid JSON — no markdown, no explanation.
+
+Audio: filename="${a.filename}", duration=${a.duration}s, RMS=${a.rms}, channels=${a.channelLabel}
+World character: "${world}"
+
+{
+  "asset_type": "sfx",
+  "game_context": "game combat" | "game movement" | "game environment" | "game death" | "game reward" | "game UI",
+  "source_material": "physical material e.g. metal on stone, leather on wood, organic tissue",
+  "sound_character": "spectral and temporal description e.g. low resonant thud long tail, sharp crack no sustain",
+  "attack_shape": "hard attack" | "soft attack" | "medium attack" | "percussive" | "swelling",
+  "space": "dry" | "small room" | "medium room" | "large hall" | "outdoor",
+  "mood": "aggressive" | "tense" | "eerie" | "triumphant" | "desperate" | "neutral",
+  "intensity": "very low intensity" | "low intensity" | "mid intensity" | "high intensity" | "very high intensity",
+  "channel": "mono" | "stereo",
+  "variant_id": "",
+  "technical_flags": "comma-separated subset of: one-shot, mono, stereo, dry, short transient, long tail, looping",
+  "warnings": ""
+}`,
+
+    ui: `You are an expert game audio tagger. Return ONLY valid JSON — no markdown, no explanation.
+
+Audio: filename="${a.filename}", duration=${a.duration}s, RMS=${a.rms}, channels=${a.channelLabel}
+World character: "${world}"
+
+{
+  "asset_type": "ui sound",
+  "game_context": "game UI",
+  "interaction_type": "confirm" | "cancel" | "hover" | "scroll" | "error" | "success" | "notification" | "reward" | "transition",
+  "tonal_character": "bright" | "warm" | "neutral" | "digital" | "organic" | "dark" | "metallic" | "wooden",
+  "sound_source": "what makes this sound e.g. small metal bell, wooden click, crystal resonance",
+  "mood": "positive" | "negative" | "neutral" | "triumphant",
+  "intensity": "very low intensity" | "low intensity" | "mid intensity" | "high intensity" | "very high intensity",
+  "tonal_match": "yes" | "partial" | "no",
+  "channel": "mono" | "stereo",
+  "technical_flags": "comma-separated subset of: one-shot, stereo, mono, short transient, no tail, tail",
+  "warnings": ""
+}`
+  };
+
+  try {
+    const res = await fetch('https://api.anthropic.com/v1/messages', {
+      method: 'POST',
+      headers: {
+        'Content-Type':         'application/json',
+        'x-api-key':            key,
+        'anthropic-version':    '2023-06-01',
+        'anthropic-dangerous-direct-browser-access': 'true'
+      },
+      body: JSON.stringify({
+        model:      'claude-sonnet-4-20250514',
+        max_tokens: 1000,
+        messages:   [{ role: 'user', content: prompts[currentTab] }]
+      })
+    });
+
+    if (!res.ok) {
+      const err = await res.json();
+      throw new Error(err.error?.message || `API error ${res.status}`);
+    }
+
+    const data = await res.json();
+    const raw  = data.content?.[0]?.text || '';
+    const clean = raw.replace(/```json|```/g, '').trim();
+    taggedData = JSON.parse(clean);
+    renderResults(taggedData, a, world);
+    setStatus('Tagged successfully', 'done');
+  } catch(err) {
+    setStatus('Error: ' + err.message, 'error');
+  }
+}
+
+// ── Render results ────────────────────────────────────────────────────────────
+function renderResults(d, auto, world) {
+  document.getElementById('results').style.display = 'block';
+  const grid = document.getElementById('fieldsGrid');
+  grid.innerHTML = '';
+
+  const fieldDefs = currentTab === 'music' ? [
+    ['filename',        auto.filename,         'auto'],
+    ['duration',        auto.duration + 's',   'auto'],
+    ['world_character', world,                 'world'],
+    ['asset_type',      d.asset_type,          'ai'],
+    ['game_context',    d.game_context,        'ai'],
+    ['instrumentation', d.instrumentation,     'ai'],
+    ['mood_primary',    d.mood_primary,        'ai'],
+    ['mood_secondary',  d.mood_secondary || '—','ai'],
+    ['intensity',       d.intensity,           'ai'],
+    ['key_confirmed',   d.key_confirmed,       'ai'],
+    ['bpm_confirmed',   d.bpm_confirmed || '—','ai'],
+    ['structure',       d.structure,           'ai'],
+    ['loop_ready',      d.loop_ready,          'ai'],
+    ['technical_flags', d.technical_flags,     'ai'],
+  ] : currentTab === 'sfx' ? [
+    ['filename',        auto.filename,         'auto'],
+    ['duration',        auto.duration + 's',   'auto'],
+    ['world_character', world,                 'world'],
+    ['asset_type',      d.asset_type,          'ai'],
+    ['game_context',    d.game_context,        'ai'],
+    ['source_material', d.source_material,     'ai'],
+    ['sound_character', d.sound_character,     'ai'],
+    ['attack_shape',    d.attack_shape,        'ai'],
+    ['space',           d.space,               'ai'],
+    ['mood',            d.mood,                'ai'],
+    ['intensity',       d.intensity,           'ai'],
+    ['channel',         d.channel,             'ai'],
+    ['variant_id',      d.variant_id || '—',  'ai'],
+    ['technical_flags', d.technical_flags,     'ai'],
+  ] : [
+    ['filename',         auto.filename,         'auto'],
+    ['duration',         auto.duration + 's',   'auto'],
+    ['world_character',  world,                 'world'],
+    ['asset_type',       d.asset_type,          'ai'],
+    ['interaction_type', d.interaction_type,    'ai'],
+    ['tonal_character',  d.tonal_character,     'ai'],
+    ['sound_source',     d.sound_source,        'ai'],
+    ['mood',             d.mood,                'ai'],
+    ['intensity',        d.intensity,           'ai'],
+    ['tonal_match',      d.tonal_match,         'ai'],
+    ['channel',          d.channel,             'ai'],
+    ['technical_flags',  d.technical_flags,     'ai'],
+  ];
+
+  fieldDefs.forEach(([lbl, val, type]) => {
+    const div  = document.createElement('div');
+    div.className = 'field';
+    const empty = !val || val === '—' || val === '';
+    div.innerHTML = `
+      <div class="field-label">${lbl}</div>
+      <div class="field-value ${empty ? 'empty' : type}">${empty ? '—' : val}</div>`;
+    grid.appendChild(div);
+  });
+
+  document.getElementById('captionText').textContent = buildCaption(d, auto, world);
+
+  const warnBox = document.getElementById('warnBox');
+  if (d.warnings) {
+    warnBox.style.display = 'block';
+    warnBox.textContent   = '⚠ ' + d.warnings;
+  } else {
+    warnBox.style.display = 'none';
+  }
+}
+
+function buildCaption(d, auto, world) {
+  const p = [world];
+  if (currentTab === 'music') {
+    if (d.asset_type)    p.push(d.asset_type);
+    if (d.instrumentation) p.push(d.instrumentation);
+    const m = d.mood_secondary ? `${d.mood_primary} and ${d.mood_secondary}` : d.mood_primary;
+    if (m)               p.push(m);
+    if (d.intensity)     p.push(d.intensity);
+    if (d.key_confirmed && d.key_confirmed !== '—') p.push(d.key_confirmed);
+    if (d.bpm_confirmed && d.bpm_confirmed !== 0 && d.bpm_confirmed !== '—') p.push(d.bpm_confirmed + ' BPM');
+    if (d.structure)     p.push(d.structure);
+    if (d.game_context)  p.push(d.game_context);
+    if (d.loop_ready)    p.push('loop: ' + d.loop_ready);
+    if (d.technical_flags) p.push(d.technical_flags);
+  } else if (currentTab === 'sfx') {
+    if (d.asset_type)      p.push(d.asset_type);
+    if (d.source_material) p.push(d.source_material + ' source');
+    if (d.sound_character) p.push(d.sound_character);
+    if (d.attack_shape)    p.push(d.attack_shape + ' attack');
+    if (d.space)           p.push(d.space);
+    if (d.mood && d.mood !== 'neutral') p.push(d.mood);
+    if (d.intensity)       p.push(d.intensity);
+    if (d.channel)         p.push(d.channel);
+    if (d.game_context)    p.push(d.game_context);
+    if (d.technical_flags) p.push(d.technical_flags);
+  } else {
+    if (d.asset_type)        p.push(d.asset_type);
+    if (d.sound_source)      p.push(d.sound_source + ' source');
+    if (d.interaction_type)  p.push(d.interaction_type + ' interaction');
+    if (d.tonal_character)   p.push(d.tonal_character + ' tonal character');
+    if (d.mood)              p.push(d.mood + ' mood');
+    if (d.intensity)         p.push(d.intensity);
+    if (d.tonal_match)       p.push('tonal match: ' + d.tonal_match);
+    if (d.channel)           p.push(d.channel);
+    if (d.game_context)      p.push(d.game_context);
+    if (d.technical_flags)   p.push(d.technical_flags);
+  }
+  return p.join(', ');
+}
+
+// ── Copy row ──────────────────────────────────────────────────────────────────
+function copyRow() {
+  if (!taggedData || !autoData) return;
+  const world   = document.getElementById('worldChar').value.trim() || 'dark gothic fantasy';
+  const d       = taggedData;
+  const caption = buildCaption(d, autoData, world);
+
+  let row;
+  if (currentTab === 'music') {
+    row = [
+      d.filename || autoData.filename,
+      autoData.duration,
+      autoData.key,
+      autoData.bpm,
+      world,
+      d.asset_type,
+      d.game_context,
+      d.instrumentation,
+      d.mood_primary,
+      d.mood_secondary || '',
+      d.intensity,
+      d.key_confirmed,
+      d.bpm_confirmed || '',
+      d.structure,
+      d.loop_ready,
+      d.technical_flags,
+      caption
+    ];
+  } else if (currentTab === 'sfx') {
+    row = [
+      autoData.filename,
+      autoData.duration,
+      world,
+      d.asset_type,
+      d.game_context,
+      d.source_material,
+      d.sound_character,
+      d.attack_shape,
+      d.space,
+      d.mood,
+      d.intensity,
+      d.channel,
+      d.variant_id || '',
+      d.technical_flags,
+      caption
+    ];
+  } else {
+    row = [
+      autoData.filename,
+      autoData.duration,
+      world,
+      d.asset_type,
+      d.interaction_type,
+      d.tonal_character,
+      d.sound_source,
+      d.mood,
+      d.intensity,
+      d.tonal_match,
+      d.channel,
+      d.technical_flags,
+      caption
+    ];
+  }
+
+  navigator.clipboard.writeText(row.join('\t')).then(() => {
+    const btn = document.getElementById('copyBtn');
+    btn.textContent = 'Copied — go to your sheet and paste';
+    btn.classList.add('success');
+    setTimeout(() => {
+      btn.textContent = 'Copy row — paste directly into sheet';
+      btn.classList.remove('success');
+    }, 3000);
+  });
+}
+</script>
+</body>
+</html>
