@@ -208,12 +208,6 @@
     gap: 8px;
     margin-bottom: 14px;
   }
-  .field {
-    background: var(--surface2);
-    border: 1px solid var(--border);
-    border-radius: 8px;
-    padding: 10px 12px;
-  }
   .field-label {
     font-size: 10px;
     color: var(--muted);
@@ -230,6 +224,46 @@
   .field-value.ai     { color: var(--green); }
   .field-value.world  { color: var(--purple); }
   .field-value.empty  { color: var(--muted); font-style: italic; }
+
+  .field {
+    background: var(--surface2);
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    padding: 10px 12px;
+    position: relative;
+    transition: border-color 0.15s;
+  }
+  .field:hover { border-color: #4a9eff55; }
+  .field-copy {
+    position: absolute;
+    top: 7px; right: 8px;
+    width: 20px; height: 20px;
+    display: flex; align-items: center; justify-content: center;
+    opacity: 0;
+    cursor: pointer;
+    border-radius: 4px;
+    transition: opacity 0.15s, background 0.1s;
+    background: transparent;
+    border: none;
+    padding: 0;
+  }
+  .field:hover .field-copy { opacity: 1; }
+  .field-copy:hover { background: rgba(74,158,255,0.15); }
+  .field-copy svg { width: 12px; height: 12px; stroke: var(--muted); fill: none; stroke-width: 1.8; stroke-linecap: round; stroke-linejoin: round; }
+  .field-copy.copied svg { stroke: var(--green); }
+  .field-copy.copied::after {
+    content: 'copied';
+    position: absolute;
+    top: -22px; right: 0;
+    font-size: 10px;
+    color: var(--green);
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 4px;
+    padding: 2px 6px;
+    white-space: nowrap;
+    pointer-events: none;
+  }
 
   .caption-section { margin-bottom: 14px; }
   .caption-label {
@@ -741,29 +775,39 @@ Audio analysis:
 - channels: ${a.channelLabel}
 - world character: "${world}"
 
-CRITICAL REASONING RULES — apply these before choosing any value:
+CRITICAL REASONING RULES — read all before writing any value:
 
-VOCAL gender + weight detection (use spectral data, not just filename):
-  - spectralCentroid > 350Hz AND highEnergyRatio > 30% → likely female or high-pitched creature
-  - spectralCentroid < 200Hz AND lowEnergyRatio > 40% → likely male heavy or monster low
-  - spectralCentroid 200–350Hz → male medium or ambiguous
-  - If filename contains: female/woman/girl/f_ → female. male/man/knight/soldier/m_ → male. goblin/imp/rat → monster high. orc/troll/beast → monster low. boss/giant/dragon → monster roar.
-  - If RMS < 0.05 AND duration < 500ms → likely 'none' (too quiet/short for audible vocal)
+STEP 1 — VOCAL DETECTION (bias toward detecting vocal, not away from it):
+Most combat SFX from real game audio libraries INCLUDE a vocal layer. Default assumption = vocal is present unless:
+  a) filename explicitly says "no_vocal", "weapon_only", "pure", "sfx_only"
+  b) filename is purely descriptive of a non-human object: "door_creak", "fire_loop", "footstep"
+  c) draw/sheathe sounds — these rarely have vocals
 
-ATTACK WEIGHT detection:
-  - durationMs < 300 AND RMS < 0.1 → very light, fast → holder_weight: very light
-  - durationMs < 500 AND highEnergyRatio > 35% → light attack → holder_weight: light
-  - durationMs 500–900ms AND RMS 0.1–0.2 → medium → holder_weight: medium
-  - durationMs > 900ms OR lowEnergyRatio > 45% → heavy → holder_weight: heavy
-  - durationMs > 1500ms AND lowEnergyRatio > 50% → very heavy
+If the filename mentions a character at all (knight, warrior, female, male, hero, enemy, goblin, boss, orc etc.) — ASSUME there is a vocal and pick the most appropriate type.
 
-DURATION guide:
-  - <300ms = very fast light strike or UI sound
-  - 300–800ms = standard one-shot
-  - 800ms–2s = heavy strike or has vocal layer
-  - >2s = chained combo or ambient
+STEP 2 — VOCAL GENDER from filename (filename beats spectral data):
+  female / woman / girl / _f_ / _f. / fem / _female → female type
+  male / man / _m_ / _m. / knight / soldier / warrior / hero (default) → male type
+  goblin / imp / rat / sprite / pixie / small → monster growl high
+  orc / troll / ogre / beast / demon / creature → monster growl low
+  boss / giant / dragon / colossus / titan → monster roar
+  ghost / undead / wraith / banshee / zombie → monster shriek
+  mage / wizard / witch / sorcerer → magic incantation
 
-Infer everything possible from filename. "knight_sword_heavy_f.wav" → weapon_type:greatsword, holder_type:heavy knight, weapon_action:strike, holder_weight:heavy, vocal:female grunt sharp (f = female).
+STEP 3 — VOCAL TYPE from attack weight and action:
+  heavy/slow/powerful attack → grunt (not exhale)
+  light/fast/quick attack    → exhale or sharp grunt
+  charge / power_strike / combo_ender → battle cry
+  receiving_hit / hit_reaction / pain → pain grunt
+
+STEP 4 — ATTACK WEIGHT from spectral + duration:
+  durationMs < 300 → very light
+  durationMs 300–600 AND highEnergyRatio > 35% → light
+  durationMs 300–900 → medium
+  durationMs 900–1500 OR lowEnergyRatio > 45% → heavy
+  durationMs > 1500 OR (lowEnergyRatio > 50% AND RMS > 0.15) → very heavy
+
+Filename overrides all spectral guesses. "light_attack_female_03.wav" → holder_weight:light, vocal:female exhale controlled.
 
 Return exactly this JSON with values ONLY from the allowed lists:
 {
@@ -902,9 +946,13 @@ function renderResults(d, auto, world) {
     const div  = document.createElement('div');
     div.className = 'field';
     const empty = !val || val === '—' || val === '';
+    const displayVal = empty ? '—' : val;
     div.innerHTML = `
       <div class="field-label">${lbl}</div>
-      <div class="field-value ${empty ? 'empty' : type}">${empty ? '—' : val}</div>`;
+      <div class="field-value ${empty ? 'empty' : type}">${displayVal}</div>
+      ${empty ? '' : `<button class="field-copy" title="Copy ${lbl}" onclick="copyField(this, '${String(val).replace(/'/g,"\'")}')">
+        <svg viewBox="0 0 24 24"><rect x="9" y="9" width="13" height="13" rx="2"/><path d="M5 15H4a2 2 0 01-2-2V4a2 2 0 012-2h9a2 2 0 012 2v1"/></svg>
+      </button>`}`;
     grid.appendChild(div);
   });
 
@@ -964,6 +1012,14 @@ function buildCaption(d, auto, world) {
     if (d.technical_flags)   p.push(d.technical_flags);
   }
   return p.join(', ');
+}
+
+// ── Copy single field ────────────────────────────────────────────────────────
+function copyField(btn, val) {
+  navigator.clipboard.writeText(val).then(() => {
+    btn.classList.add('copied');
+    setTimeout(() => btn.classList.remove('copied'), 1800);
+  });
 }
 
 // ── Copy row ──────────────────────────────────────────────────────────────────
