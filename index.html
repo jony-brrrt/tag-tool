@@ -452,13 +452,22 @@ async function handleFile(file) {
     const ch0 = decoded.getChannelData(0);
     drawWaveform(ch0);
 
-    const duration = Math.round(decoded.duration);
+    const duration = Math.round(decoded.duration * 10) / 10;
     const bpm      = Math.round(await estimateBPM(ch0, decoded.sampleRate));
     const key      = estimateKey(ch0, decoded.sampleRate);
     const rms      = Math.round(calcRMS(ch0) * 1000) / 1000;
     const chLabel  = decoded.numberOfChannels > 1 ? 'stereo' : 'mono';
+    const spectral = analyseSpectral(ch0, decoded.sampleRate);
 
-    autoData = { filename: file.name, duration, bpm, key, rms, channelLabel: chLabel };
+    autoData = {
+      filename: file.name, duration, bpm, key, rms,
+      channelLabel: chLabel,
+      spectralCentroid: spectral.centroid,
+      lowEnergyRatio:   spectral.lowRatio,
+      highEnergyRatio:  spectral.highRatio,
+      dominantBand:     spectral.dominantBand,
+      durationMs:       Math.round(decoded.duration * 1000),
+    };
     ctx.close();
 
     setStatus('Asking Claude to tag…', 'loading');
@@ -474,6 +483,62 @@ function calcRMS(data) {
   const step = Math.max(1, Math.floor(data.length / 8000));
   for (let i = 0; i < data.length; i += step) { s += data[i]**2; n++; }
   return Math.sqrt(s / n);
+}
+
+function analyseSpectral(data, sr) {
+  // DFT on a representative chunk to get frequency band energies
+  const chunkSize = Math.min(4096, data.length);
+  const start     = Math.floor(data.length * 0.1); // skip first 10% (silence/noise)
+  const chunk     = data.slice(start, start + chunkSize);
+
+  // Hann window
+  const windowed = new Float32Array(chunkSize);
+  for (let i = 0; i < chunkSize; i++) {
+    windowed[i] = chunk[i] * (0.5 - 0.5 * Math.cos(2 * Math.PI * i / chunkSize));
+  }
+
+  // Compute magnitude spectrum via DFT (sampled at key frequencies)
+  // Bands: sub (20-80Hz), low (80-300Hz), mid (300-2000Hz), high (2000-8000Hz), air (8000+)
+  const bands = [
+    { name: 'sub',  lo: 20,   hi: 80   },
+    { name: 'low',  lo: 80,   hi: 300  },
+    { name: 'mid',  lo: 300,  hi: 2000 },
+    { name: 'high', lo: 2000, hi: 8000 },
+    { name: 'air',  lo: 8000, hi: 20000},
+  ];
+
+  const bandEnergy = {};
+  let totalEnergy  = 0;
+  let weightedFreq = 0;
+
+  for (const band of bands) {
+    let e = 0;
+    const freqStep = (band.hi - band.lo) / 8;
+    for (let f = band.lo; f <= band.hi; f += freqStep) {
+      if (f > sr / 2) continue;
+      const k = f / sr;
+      const w = 2 * Math.PI * k;
+      const cw = 2 * Math.cos(w);
+      let s1 = 0, s2 = 0;
+      for (let i = 0; i < chunkSize; i++) {
+        const s0 = cw * s1 - s2 + windowed[i];
+        s2 = s1; s1 = s0;
+      }
+      const mag = Math.sqrt(s1*s1 + s2*s2 - s1*s2*cw);
+      e += mag;
+      weightedFreq += mag * f;
+      totalEnergy  += mag;
+    }
+    bandEnergy[band.name] = e;
+  }
+
+  const centroid     = totalEnergy > 0 ? Math.round(weightedFreq / totalEnergy) : 500;
+  const totalBand    = Object.values(bandEnergy).reduce((a,b)=>a+b, 0) || 1;
+  const lowRatio     = Math.round(100 * (bandEnergy.sub + bandEnergy.low) / totalBand);
+  const highRatio    = Math.round(100 * (bandEnergy.high + bandEnergy.air) / totalBand);
+  const dominantBand = Object.entries(bandEnergy).sort((a,b)=>b[1]-a[1])[0][0];
+
+  return { centroid, lowRatio, highRatio, dominantBand };
 }
 
 async function estimateBPM(data, sr) {
@@ -665,12 +730,40 @@ Return exactly this JSON structure with values ONLY from the allowed lists:
 
     sfx: `You are an expert game audio tagger specialising in combat and action SFX. Return ONLY valid JSON — no markdown, no explanation.
 
-Audio analysis: filename="${a.filename}", duration=${a.duration}s, RMS=${a.rms}, channels=${a.channelLabel}
-World character: "${world}"
+Audio analysis:
+- filename: "${a.filename}"
+- duration: ${a.durationMs}ms (${a.duration}s)
+- RMS loudness: ${a.rms} (0=silent, 0.3+=loud)
+- spectral centroid: ${a.spectralCentroid}Hz  (female voice ~200-400Hz fundamental, male ~80-180Hz, weapons ~300-1200Hz, impacts ~100-600Hz)
+- low frequency energy: ${a.lowEnergyRatio}%  (high % = heavy/male/bass-heavy)
+- high frequency energy: ${a.highEnergyRatio}% (high % = bright/female/metallic/air)
+- dominant band: ${a.dominantBand}
+- channels: ${a.channelLabel}
+- world character: "${world}"
 
-Infer as much as possible from the filename. A filename like "knight_sword_strike_heavy.wav" tells you weapon_type, holder_type, weapon_action, and holder_weight directly. Use every clue available.
+CRITICAL REASONING RULES — apply these before choosing any value:
 
-Duration guide: very short (<0.3s) = fast light attack or UI. Short (0.3–0.8s) = standard one-shot strike. Medium (0.8–2s) = heavy strike or combo. Long (>2s) = chained attack sequence or ambient SFX.
+VOCAL gender + weight detection (use spectral data, not just filename):
+  - spectralCentroid > 350Hz AND highEnergyRatio > 30% → likely female or high-pitched creature
+  - spectralCentroid < 200Hz AND lowEnergyRatio > 40% → likely male heavy or monster low
+  - spectralCentroid 200–350Hz → male medium or ambiguous
+  - If filename contains: female/woman/girl/f_ → female. male/man/knight/soldier/m_ → male. goblin/imp/rat → monster high. orc/troll/beast → monster low. boss/giant/dragon → monster roar.
+  - If RMS < 0.05 AND duration < 500ms → likely 'none' (too quiet/short for audible vocal)
+
+ATTACK WEIGHT detection:
+  - durationMs < 300 AND RMS < 0.1 → very light, fast → holder_weight: very light
+  - durationMs < 500 AND highEnergyRatio > 35% → light attack → holder_weight: light
+  - durationMs 500–900ms AND RMS 0.1–0.2 → medium → holder_weight: medium
+  - durationMs > 900ms OR lowEnergyRatio > 45% → heavy → holder_weight: heavy
+  - durationMs > 1500ms AND lowEnergyRatio > 50% → very heavy
+
+DURATION guide:
+  - <300ms = very fast light strike or UI sound
+  - 300–800ms = standard one-shot
+  - 800ms–2s = heavy strike or has vocal layer
+  - >2s = chained combo or ambient
+
+Infer everything possible from filename. "knight_sword_heavy_f.wav" → weapon_type:greatsword, holder_type:heavy knight, weapon_action:strike, holder_weight:heavy, vocal:female grunt sharp (f = female).
 
 Return exactly this JSON with values ONLY from the allowed lists:
 {
